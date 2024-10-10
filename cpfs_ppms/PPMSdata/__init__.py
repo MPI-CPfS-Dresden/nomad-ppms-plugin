@@ -15,5 +15,5 @@
 # limitations under the License.
 #
 
-from .schema import *
+from cpfs_ppms.schema import *
 from .parser import *
