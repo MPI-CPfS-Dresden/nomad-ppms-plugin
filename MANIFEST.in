@@ -1,0 +1,2 @@
+recursive-include * nomad_plugin.yaml
+graft src/cpfs_ppms/example_uploads
