@@ -28,7 +28,7 @@ class SqcParserEntryPoint(ParserEntryPoint):
         return CPFSPPMSSequenceParser(**self.dict())
 
 
-parser_entry_point_data = SqcParserEntryPoint(
+parser_entry_point_sqc = SqcParserEntryPoint(
     name='SequenceParser',
     description='New parser entry point configuration.',
     mainfile_name_re='^.+\.seq$',
