@@ -33,7 +33,7 @@ from nomad.parsing import MatchingParser
 from nomad.search import search
 from nomad_material_processing.utils import create_archive
 
-from cpfs_ppms.schema import CPFSPPMSMeasurement
+from cpfs_ppms.schema_packages.schema_package import CPFSPPMSMeasurement
 
 if TYPE_CHECKING:
     from nomad.datamodel.datamodel import (
