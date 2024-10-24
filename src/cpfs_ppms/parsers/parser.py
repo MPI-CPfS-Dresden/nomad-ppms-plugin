@@ -64,13 +64,13 @@ class CPFSPPMSFile(EntryData):
 
 
 class CPFSPPMSParser(MatchingParser):
-    def __init__(self):
-        super().__init__(
-            name='NOMAD PPMS schema and parser plugin for the CPFS',
-            code_name='cpfs_ppms_data',
-            code_homepage='https://github.com/FAIRmat-NFDI/AreaA-data_modeling_and_schemas',
-            supported_compressions=['gz', 'bz2', 'xz'],
-        )
+    # def __init__(self):
+    #    super().__init__(
+    #        name='NOMAD PPMS schema and parser plugin for the CPFS',
+    #        code_name='cpfs_ppms_data',
+    #        code_homepage='https://github.com/FAIRmat-NFDI/AreaA-data_modeling_and_schemas',
+    #        supported_compressions=['gz', 'bz2', 'xz'],
+    #    )
 
     def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
         timethreshold = 15
@@ -121,13 +121,13 @@ class CPFSPPMSSequenceFile(BaseSection, EntryData):
 
 
 class CPFSPPMSSequenceParser(MatchingParser):
-    def __init__(self):
-        super().__init__(
-            name='NOMAD PPMS schema and parser plugin for the CPFS',
-            code_name='cpfs_ppms_sequence',
-            code_homepage='https://github.com/FAIRmat-NFDI/AreaA-data_modeling_and_schemas',
-            supported_compressions=['gz', 'bz2', 'xz'],
-        )
+    # def __init__(self):
+    #    super().__init__(
+    #        name='NOMAD PPMS schema and parser plugin for the CPFS',
+    #        code_name='cpfs_ppms_sequence',
+    #        code_homepage='https://github.com/FAIRmat-NFDI/AreaA-data_modeling_and_schemas',
+    #        supported_compressions=['gz', 'bz2', 'xz'],
+    #    )
 
     def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
         data_file = mainfile.split('/')[-1]
