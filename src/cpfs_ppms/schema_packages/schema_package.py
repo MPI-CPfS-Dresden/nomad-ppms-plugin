@@ -1108,9 +1108,9 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
                                 setattr(
                                     channel_1,
                                     clean_key,
-                                    block[
-                                        key
-                                    ],  # * ureg(data_template[f'{key}/@units'])
+                                    block[key].astype(
+                                        'float64'
+                                    ),  # * ureg(data_template[f'{key}/@units'])
                                 )
                         data.m_add_sub_section(ACTPPMSData.channels, channel_1)
                     channel_2_data = [
@@ -1125,9 +1125,9 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
                                 setattr(
                                     channel_2,
                                     clean_key,
-                                    block[
-                                        key
-                                    ],  # * ureg(data_template[f'{key}/@units'])
+                                    block[key].astype(
+                                        'float64'
+                                    ),  # * ureg(data_template[f'{key}/@units'])
                                 )
                         data.m_add_sub_section(ETOPPMSData.channels, channel_2)
 
