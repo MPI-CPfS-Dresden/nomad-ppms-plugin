@@ -733,7 +733,7 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
             data_buffer = StringIO(data_section)
             data_df = pd.read_csv(
                 data_buffer,
-                header=None,
+                header=0,
                 skipinitialspace=True,
                 sep=',',
                 engine='python',
