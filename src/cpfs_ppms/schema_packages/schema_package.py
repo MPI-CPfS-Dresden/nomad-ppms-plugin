@@ -1112,7 +1112,7 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
                                         'float64'
                                     ),  # * ureg(data_template[f'{key}/@units'])
                                 )
-                        data.m_add_sub_section(ACTPPMSData.channels, channel_1)
+                        data.m_add_sub_section(ETOPPMSData.channels, channel_1)
                     channel_2_data = [
                         key for key in block.keys() if 'ch2' in key.lower()
                     ]
