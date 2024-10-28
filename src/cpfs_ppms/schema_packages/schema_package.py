@@ -739,8 +739,8 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
                 engine='python',
             )
             # Rename columns using the first row of data
-            data_df.columns = data_df.iloc[0]
-            data_df = data_df.iloc[1:].reset_index(drop=True)
+            # data_df.columns = data_df.iloc[0]
+            # data_df = data_df.iloc[1:].reset_index(drop=True)
             other_data = [
                 key
                 for key in data_df.keys()
