@@ -706,9 +706,17 @@ class CPFSPPMSMeasurement(Measurement, PlotSection, EntryData):
                                     ' '.join(line.split(',')[2:4]), '%m-%d-%Y %I:%M %p'
                                 )
                             except ValueError:
-                                iso_date = datetime.strptime(
-                                    line.split(',')[3], '%Y-%m-%d %H:%M:%S'
-                                )
+                                try:
+                                    iso_date = datetime.strptime(
+                                        line.split(',')[3], '%Y-%m-%d %H:%M:%S'
+                                    )
+                                except ValueError:
+                                    try:
+                                        iso_date = datetime.strptime(
+                                            line.split(',')[3], '%m/%d/%Y %I:%M:%S %p'
+                                        )
+                                    except ValueError:
+                                        logger.error('Could not read FILEOPENTIME')
                         setattr(self, 'datetime', iso_date)
                 if line.startswith('BYAPP'):
                     if hasattr(self, 'software'):
