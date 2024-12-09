@@ -33,7 +33,7 @@ from nomad.parsing import MatchingParser
 from nomad.search import search
 from nomad_material_processing.utils import create_archive
 
-from cpfs_ppms.schema_packages.schema_package import CPFSPPMSMeasurement
+from cpfs_ppms.schema_packages.schema_package import CPFSPPMSETOMeasurementDefault
 
 if TYPE_CHECKING:
     from nomad.datamodel.datamodel import (
@@ -56,7 +56,7 @@ configuration = config.get_plugin_entry_point(
 
 class CPFSPPMSFile(EntryData):
     measurement = Quantity(
-        type=CPFSPPMSMeasurement,
+        type=CPFSPPMSETOMeasurementDefault,
         a_eln=ELNAnnotation(
             component='ReferenceEditQuantity',
         ),
@@ -76,7 +76,7 @@ class CPFSPPMSParser(MatchingParser):
         timethreshold = 15
         data_file = mainfile.split('/')[-1]
         data_file_with_path = mainfile.split('raw/')[-1]
-        entry = CPFSPPMSMeasurement()
+        entry = CPFSPPMSETOMeasurementDefault()
         entry.data_file = data_file_with_path
         file_name = f'{data_file[:-4]}.archive.json'
         # entry.normalize(archive, logger)

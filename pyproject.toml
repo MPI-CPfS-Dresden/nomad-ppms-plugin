@@ -113,7 +113,7 @@ where = ["src"]
 [project.entry-points.'nomad.plugin']
 parser_entry_point_data = "cpfs_ppms.parsers:parser_entry_point_data"
 parser_entry_point_sqc = "cpfs_ppms.parsers:parser_entry_point_sqc"
-schema_package_entry_point = "cpfs_ppms.schema_packages:schema_package_entry_point"
+schema_entry_point_eto_default = "cpfs_ppms.schema_packages:schema_entry_point_eto_default"
 
 
 
