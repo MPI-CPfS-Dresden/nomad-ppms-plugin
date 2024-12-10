@@ -346,36 +346,20 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
         from plotly.subplots import make_subplots
 
         for data in self.data:
-            if self.software.startswith('ACTRANSPORT'):
-                if data.measurement_type == 'field':
-                    resistivity_ch1 = px.scatter(
-                        x=data.magnetic_field, y=data.channels[0].resistivity
-                    )
-                    resistivity_ch2 = px.scatter(
-                        x=data.magnetic_field, y=data.channels[1].resistivity
-                    )
-                if data.measurement_type == 'temperature':
-                    resistivity_ch1 = px.scatter(
-                        x=data.temperature, y=data.channels[0].resistivity
-                    )
-                    resistivity_ch2 = px.scatter(
-                        x=data.temperature, y=data.channels[1].resistivity
-                    )
-            if self.software.startswith('Electrical Transport Option'):
-                if data.measurement_type == 'field':
-                    resistivity_ch1 = px.scatter(
-                        x=data.magnetic_field, y=data.channels[0].resistance
-                    )
-                    resistivity_ch2 = px.scatter(
-                        x=data.magnetic_field, y=data.channels[1].resistance
-                    )
-                if data.measurement_type == 'temperature':
-                    resistivity_ch1 = px.scatter(
-                        x=data.temperature, y=data.channels[0].resistance
-                    )
-                    resistivity_ch2 = px.scatter(
-                        x=data.temperature, y=data.channels[1].resistance
-                    )
+            if data.measurement_type == 'field':
+                resistivity_ch1 = px.scatter(
+                    x=data.magnetic_field, y=data.channels[0].resistance
+                )
+                resistivity_ch2 = px.scatter(
+                    x=data.magnetic_field, y=data.channels[1].resistance
+                )
+            if data.measurement_type == 'temperature':
+                resistivity_ch1 = px.scatter(
+                    x=data.temperature, y=data.channels[0].resistance
+                )
+                resistivity_ch2 = px.scatter(
+                    x=data.temperature, y=data.channels[1].resistance
+                )
             figure1 = make_subplots(rows=2, cols=1, shared_xaxes=True)
             figure1.add_trace(resistivity_ch1.data[0], row=1, col=1)
             figure1.add_trace(resistivity_ch2.data[0], row=2, col=1)
@@ -385,17 +369,18 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
             )
 
         # find measurement modes, for now coming from sample.comment
-        modelist = []
-        for channel in ['Ch1_', 'Ch2_']:
-            if channel + 'TMR' in self.samples[0].comment:
-                modelist.append('TMR')
-            elif channel + 'Hall' in self.samples[0].comment:
-                modelist.append('Hall')
-            else:
-                modelist.append('undefined')
-        self.channel_measurement_type = modelist
+        if self.samples[0].comment:
+            modelist = []
+            for channel in ['Ch1_', 'Ch2_']:
+                if channel + 'TMR' in self.samples[0].comment:
+                    modelist.append('TMR')
+                elif channel + 'Hall' in self.samples[0].comment:
+                    modelist.append('Hall')
+                else:
+                    modelist.append('undefined')
+            self.channel_measurement_type = modelist
 
-        if self.software.startswith('Electrical Transport Option'):
+        if 'Hall' in self.channel_measurement_type and 'TMR' in self.channel_measurement_type:
             # find biggest fitlength
             maxfield = 90000 * ureg('gauss')
             fitlength = 0
@@ -777,3 +762,58 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                 PlotlyFigure(label='AHC', figure=figure3.to_plotly_json())
             )
 
+class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
+
+    temperature_tolerance = Quantity(
+        type=float,
+        unit='kelvin',
+        a_eln=ELNAnnotation(
+            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
+        ),
+    )
+
+    field_tolerance = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        super().normalize(archive, logger)
+
+        ### Start of the PPMSMeasurement normalizer
+
+        if archive.data.sequence_file:
+            logger.info('Parsing PPMS sequence file.')
+            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
+                sequence = file.readlines()
+                self.steps = find_ppms_steps_from_sequence(sequence)
+
+
+
+        # Now create the according plots
+        import plotly.express as px
+        from plotly.subplots import make_subplots
+
+        for data in self.data:
+            if data.measurement_type == 'field':
+                resistivity_ch1 = px.scatter(
+                    x=data.magnetic_field, y=data.channels[0].resistivity
+                )
+                resistivity_ch2 = px.scatter(
+                    x=data.magnetic_field, y=data.channels[1].resistivity
+                )
+            if data.measurement_type == 'temperature':
+                resistivity_ch1 = px.scatter(
+                    x=data.temperature, y=data.channels[0].resistivity
+                )
+                resistivity_ch2 = px.scatter(
+                    x=data.temperature, y=data.channels[1].resistivity
+                )
+            figure1 = make_subplots(rows=2, cols=1, shared_xaxes=True)
+            figure1.add_trace(resistivity_ch1.data[0], row=1, col=1)
+            figure1.add_trace(resistivity_ch2.data[0], row=2, col=1)
+            figure1.update_layout(height=400, width=716, title_text=data.name)
+            self.figures.append(
+                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
+            )
