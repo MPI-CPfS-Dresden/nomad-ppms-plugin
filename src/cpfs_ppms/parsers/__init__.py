@@ -53,6 +53,23 @@ parser_entry_point_data_act_default = DataParserEntryPointACTDefault(
     mainfile_contents_re='BYAPP,\s*ACTRANSPORT'
 )
 
+class DataParserEntryPointMPMSDefault(ParserEntryPoint):
+    parameter: int = Field(0, description='Custom configuration parameter')
+
+    def load(self):
+        from cpfs_ppms.parsers.parser import CPFSPPMSMPMSParserDefault
+
+        return CPFSPPMSMPMSParserDefault(**self.dict())
+
+
+parser_entry_point_data_mpms_default = DataParserEntryPointMPMSDefault(
+    name='DataParser',
+    description='New parser entry point configuration.',
+    mainfile_name_re='^.+\.dat$',
+    mainfile_mime_re='application/x-wine-extension-ini',
+    mainfile_contents_re='BYAPP,\s*MPMS3'
+)
+
 class SqcParserEntryPoint(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 

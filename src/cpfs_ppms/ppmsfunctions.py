@@ -28,6 +28,8 @@ from cpfs_ppms.ppmsdatastruct import (
     ETOChannelData,
     ETOData,
     ETOPPMSData,
+    MPMSData,
+    MPMSPPMSData,
 )
 from cpfs_ppms.ppmssteps import (
     PPMSMeasurementACTResistanceStep,
@@ -48,6 +50,9 @@ from cpfs_ppms.ppmssteps import (
 def clean_channel_keys(input_key: str) -> str:
     output_key = (
         input_key.split('(')[0]
+        .replace('M. Std. Err.', 'moment std err')
+        .replace("Signal'", 'Signal Derivative')
+        .replace('M. Quad. Signal', 'moment quad signal')
         .replace('Std. Dev.', 'std dev')
         .replace('Std.Dev.', 'std dev')
         .replace('Res.', 'resistivity')
@@ -55,6 +60,9 @@ def clean_channel_keys(input_key: str) -> str:
         .replace('C.Cur.', 'crit cur')
         .replace('Quad.Error', 'quad error')
         .replace('Harm.', 'harmonic')
+        .replace('Min.', 'min')
+        .replace('Max.', 'max')
+        .replace('Temp.', 'temperature')
         .replace('-', ' ')
         .replace('Field (Oe)', 'Magnetic Field (Oe)')
         .lower()
@@ -67,7 +75,8 @@ def clean_channel_keys(input_key: str) -> str:
     )
     return output_key
 
-def find_ppms_steps_from_sequence(sequence):
+
+def find_ppms_steps_from_sequence(sequence):  # noqa: PLR0912, PLR0915
     all_steps = []
     for line in sequence:
         if line.startswith('!'):
@@ -162,9 +171,7 @@ def find_ppms_steps_from_sequence(sequence):
                 )
             )
         elif line.startswith('ENB'):
-            all_steps.append(
-                PPMSMeasurementScanFieldEndStep(name='End Field Scan.')
-            )
+            all_steps.append(PPMSMeasurementScanFieldEndStep(name='End Field Scan.'))
         elif line.startswith('LPT'):
             details = line.split()
             spacing_code = ['Uniform', '1/T', 'log(T)']
@@ -305,16 +312,15 @@ def find_ppms_steps_from_sequence(sequence):
         elif line.startswith('CHN'):
             continue
         else:
-            #TODO: add error back for wrong/unknown steps
+            # TODO: add error back for wrong/unknown steps
             continue
-            #logger.error('Found unknown keyword ' + line[:4])
+            # logger.error('Found unknown keyword ' + line[:4])
     return all_steps
+
 
 def get_fileopentime(line_time):
     try:
-        iso_date = datetime.strptime(
-            line_time.split(',')[3], '%m/%d/%Y %H:%M:%S'
-        )
+        iso_date = datetime.strptime(line_time.split(',')[3], '%m/%d/%Y %H:%M:%S')
     except ValueError:
         try:
             iso_date = datetime.strptime(
@@ -331,14 +337,13 @@ def get_fileopentime(line_time):
                         line_time.split(',')[3], '%m/%d/%Y %I:%M:%S %p'
                     )
                 except ValueError:
-                    iso_date = "Not found."
+                    iso_date = 'Not found.'
     return iso_date
 
 
-def get_ppms_steps_from_data(data,temperature_tolerance,field_tolerance):
-
-    all_steps=[]
-    runs_list=[]
+def get_ppms_steps_from_data(data, temperature_tolerance, field_tolerance):  # noqa: PLR0912
+    all_steps = []
+    runs_list = []
 
     startval = 0
     measurement_type = 'undefined'
@@ -371,17 +376,16 @@ def get_ppms_steps_from_data(data,temperature_tolerance,field_tolerance):
                     if measurement_type == 'undefined':
                         measurement_type = 'temperature'
                     else:
-                        # logger.error("Can't identify measurement type in line "+str(i)+" with forward step "+str(k)+".")
                         measurement_type = 'undefined'
                 if measurement_type != 'undefined':
                     break
-            #TODO: Add back error messages
-            #else:
-                #logger.warning(
+                    # TODO: Add back error messages
+                    # else:
+                    # logger.warning(
                     "Can't identify measurement type in line "
-                    + str(i)
-                    + '.'
-                #)
+                    +str(i)
+                    +'.'
+                # )
         elif measurement_type == 'field':
             if (
                 abs(
@@ -408,27 +412,23 @@ def get_ppms_steps_from_data(data,temperature_tolerance,field_tolerance):
                 value = np.round(float(data['Magnetic Field (Oe)'].iloc[i - 1]), -1)
                 all_steps.append(
                     PPMSMeasurementStep(
-                        name='Temperature sweep at '
-                        + str(value)
-                        + ' Oe.'
+                        name='Temperature sweep at ' + str(value) + ' Oe.'
                     )
                 )
             if measurement_type == 'field':
                 value = np.round(float(data['Temperature (K)'].iloc[i - 1]), 1)
                 all_steps.append(
-                    PPMSMeasurementStep(
-                        name='Field sweep at ' + str(value) + ' K.'
-                    )
+                    PPMSMeasurementStep(name='Field sweep at ' + str(value) + ' K.')
                 )
-            runs_list.append([measurement_type,value,startval,i])
+            runs_list.append([measurement_type, value, startval, i])
             startval = i
             measurement_type = 'undefined'
 
     return all_steps, runs_list
 
 
-def split_ppms_data_act(data_full,runs):
-    all_data=[]
+def split_ppms_data_act(data_full, runs):  # noqa: PLR0912
+    all_data = []
     for i in range(len(runs)):
         block = data_full.iloc[runs[i][2] : runs[i][3]]
         data = ACTPPMSData()
@@ -453,9 +453,7 @@ def split_ppms_data_act(data_full,runs):
                     clean_key,
                     block[key],  # * ureg(data_template[f'{key}/@units'])
                 )
-        channel_1_data = [
-            key for key in block.keys() if 'ch1' in key.lower()
-        ]
+        channel_1_data = [key for key in block.keys() if 'ch1' in key.lower()]
         if channel_1_data:
             channel_1 = ACTChannelData()
             setattr(channel_1, 'name', 'Channel 1')
@@ -465,14 +463,10 @@ def split_ppms_data_act(data_full,runs):
                     setattr(
                         channel_1,
                         clean_key,
-                        block[
-                            key
-                        ],  # * ureg(data_template[f'{key}/@units'])
+                        block[key],  # * ureg(data_template[f'{key}/@units'])
                     )
             data.m_add_sub_section(ACTPPMSData.channels, channel_1)
-        channel_2_data = [
-            key for key in block.keys() if 'ch2' in key.lower()
-        ]
+        channel_2_data = [key for key in block.keys() if 'ch2' in key.lower()]
         if channel_2_data:
             channel_2 = ACTChannelData()
             setattr(channel_2, 'name', 'Channel 2')
@@ -482,9 +476,7 @@ def split_ppms_data_act(data_full,runs):
                     setattr(
                         channel_2,
                         clean_key,
-                        block[
-                            key
-                        ],  # * ureg(data_template[f'{key}/@units'])
+                        block[key],  # * ureg(data_template[f'{key}/@units'])
                     )
             data.m_add_sub_section(ACTPPMSData.channels, channel_2)
 
@@ -503,8 +495,8 @@ def split_ppms_data_act(data_full,runs):
     return all_data
 
 
-def split_ppms_data_eto(data_full,runs):
-    all_data=[]
+def split_ppms_data_eto(data_full, runs):  # noqa: PLR0912
+    all_data = []
     for i in range(len(runs)):
         block = data_full.iloc[runs[i][2] : runs[i][3]]
         data = ETOPPMSData()
@@ -529,9 +521,7 @@ def split_ppms_data_eto(data_full,runs):
                     clean_key,
                     block[key],  # * ureg(data_template[f'{key}/@units'])
                 )
-        channel_1_data = [
-            key for key in block.keys() if 'ch1' in key.lower()
-        ]
+        channel_1_data = [key for key in block.keys() if 'ch1' in key.lower()]
         if channel_1_data:
             channel_1 = ETOChannelData()
             setattr(channel_1, 'name', 'Channel 1')
@@ -546,9 +536,7 @@ def split_ppms_data_eto(data_full,runs):
                         ),  # * ureg(data_template[f'{key}/@units'])
                     )
             data.m_add_sub_section(ETOPPMSData.channels, channel_1)
-        channel_2_data = [
-            key for key in block.keys() if 'ch2' in key.lower()
-        ]
+        channel_2_data = [key for key in block.keys() if 'ch2' in key.lower()]
         if channel_2_data:
             channel_2 = ETOChannelData()
             setattr(channel_2, 'name', 'Channel 2')
@@ -564,9 +552,7 @@ def split_ppms_data_eto(data_full,runs):
                     )
             data.m_add_sub_section(ETOPPMSData.channels, channel_2)
 
-        eto_channel_data = [
-            key for key in block.keys() if 'ETO Channel' in key
-        ]
+        eto_channel_data = [key for key in block.keys() if 'ETO Channel' in key]
         if eto_channel_data:
             for key in eto_channel_data:
                 eto_channel = ETOData()
@@ -574,9 +560,48 @@ def split_ppms_data_eto(data_full,runs):
                     setattr(eto_channel, 'name', key)
                 if hasattr(eto_channel, 'ETO_channel'):
                     setattr(eto_channel, 'ETO_channel', data[key])
-                data.m_add_sub_section(
-                    ETOPPMSData.eto_channels, eto_channel
+                data.m_add_sub_section(ETOPPMSData.eto_channels, eto_channel)
+
+        all_data.append(data)
+
+    return all_data
+
+
+def split_ppms_data_mpms(data_full, runs):
+    all_data = []
+    for i in range(len(runs)):
+        block = data_full.iloc[runs[i][2] : runs[i][3]]
+        data = MPMSPPMSData()
+        data.measurement_type = runs[i][0]
+        if data.measurement_type == 'field':
+            data.name = 'Field sweep at ' + str(runs[i][1]) + ' K.'
+        if data.measurement_type == 'temperature':
+            data.name = 'Temperature sweep at ' + str(runs[i][1]) + ' Oe.'
+        data.title = data.name
+        other_data = [
+            key
+            for key in block.keys()
+            if 'ch1' not in key and 'ch2' not in key and 'map' not in key.lower()
+        ]
+        for key in other_data:
+            clean_key = (
+                key.split('(')[0].strip().replace(' ', '_').lower()
+            )  # .replace('time stamp','timestamp')
+            if hasattr(data, clean_key):
+                setattr(
+                    data,
+                    clean_key,
+                    block[key],  # * ureg(data_template[f'{key}/@units'])
                 )
+        map_data = [key for key in block.keys() if 'Map' in key]
+        if map_data:
+            for key in map_data:
+                map = MPMSData()
+                if hasattr(map, 'name'):
+                    setattr(map, 'name', key)
+                if hasattr(map, 'map'):
+                    setattr(map, 'map', block[key])
+                data.m_add_sub_section(MPMSPPMSData.maps, map)
 
         all_data.append(data)
 
