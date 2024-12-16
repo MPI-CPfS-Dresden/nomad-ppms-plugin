@@ -16,8 +16,9 @@ parser_entry_point_data_eto_default = DataParserEntryPointETODefault(
     description='New parser entry point configuration.',
     mainfile_name_re='^.+\.dat$',
     mainfile_mime_re='application/x-wine-extension-ini',
-    mainfile_contents_re='BYAPP, Electrical Transport Option'
+    mainfile_contents_re='BYAPP, Electrical Transport Option',
 )
+
 
 class DataParserEntryPointETOLabview(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
@@ -31,10 +32,11 @@ class DataParserEntryPointETOLabview(ParserEntryPoint):
 parser_entry_point_data_eto_labview = DataParserEntryPointETOLabview(
     name='DataParser',
     description='New parser entry point configuration.',
-    #mainfile_name_re='^.+\.dat$',
+    # mainfile_name_re='^.+\.dat$',
     mainfile_mime_re='text/plain',
-    mainfile_contents_re='; LABVIEW measurement file V2.6'
+    mainfile_contents_re='; LABVIEW measurement file V2.6',
 )
+
 
 class DataParserEntryPointACTDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
@@ -50,8 +52,9 @@ parser_entry_point_data_act_default = DataParserEntryPointACTDefault(
     description='New parser entry point configuration.',
     mainfile_name_re='^.+\.dat$',
     mainfile_mime_re='application/x-wine-extension-ini',
-    mainfile_contents_re='BYAPP,\s*ACTRANSPORT'
+    mainfile_contents_re='BYAPP,\s*ACTRANSPORT',
 )
+
 
 class DataParserEntryPointMPMSDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
@@ -67,8 +70,27 @@ parser_entry_point_data_mpms_default = DataParserEntryPointMPMSDefault(
     description='New parser entry point configuration.',
     mainfile_name_re='^.+\.dat$',
     mainfile_mime_re='application/x-wine-extension-ini',
-    mainfile_contents_re='BYAPP,\s*MPMS3'
+    mainfile_contents_re='BYAPP,\s*MPMS3',
 )
+
+
+class DataParserEntryPointACMSDefault(ParserEntryPoint):
+    parameter: int = Field(0, description='Custom configuration parameter')
+
+    def load(self):
+        from cpfs_ppms.parsers.parser import CPFSPPMSACMSParserDefault
+
+        return CPFSPPMSACMSParserDefault(**self.dict())
+
+
+parser_entry_point_data_acms_default = DataParserEntryPointACMSDefault(
+    name='DataParser',
+    description='New parser entry point configuration.',
+    mainfile_name_re='^.+\.dat$',
+    mainfile_mime_re='application/x-wine-extension-ini',
+    mainfile_contents_re='BYAPP,\s*ACMS',
+)
+
 
 class SqcParserEntryPoint(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')

@@ -22,6 +22,8 @@ from datetime import datetime
 import numpy as np
 
 from cpfs_ppms.ppmsdatastruct import (
+    ACMSData,
+    ACMSPPMSData,
     ACTChannelData,
     ACTData,
     ACTPPMSData,
@@ -51,6 +53,12 @@ def clean_channel_keys(input_key: str) -> str:
     output_key = (
         input_key.split('(')[0]
         .replace('M. Std. Err.', 'moment std err')
+        .replace('M-Std.Err.', 'moment std err')
+        .replace('M-DC', 'moment dc')
+        .replace("M''", 'moment second derivative')
+        .replace("M'", 'moment derivative')
+        .replace("Calcoil''", 'calcoil second derivative')
+        .replace("Calcoil'", 'calcoil derivative')
         .replace("Signal'", 'Signal Derivative')
         .replace('M. Quad. Signal', 'moment quad signal')
         .replace('Std. Dev.', 'std dev')
@@ -60,8 +68,8 @@ def clean_channel_keys(input_key: str) -> str:
         .replace('C.Cur.', 'crit cur')
         .replace('Quad.Error', 'quad error')
         .replace('Harm.', 'harmonic')
-        .replace('Min.', 'min')
-        .replace('Max.', 'max')
+        .replace('Min.', 'min ')
+        .replace('Max.', 'max ')
         .replace('Temp.', 'temperature')
         .replace('-', ' ')
         .replace('Field (Oe)', 'Magnetic Field (Oe)')
@@ -69,7 +77,7 @@ def clean_channel_keys(input_key: str) -> str:
         .replace('ch1', '')
         .replace('ch2', '')
         .strip()
-        .replace(' ', '_')
+        .replace('\s+', '_')
         .replace('3rd', 'third')
         .replace('2nd', 'second')
     )
@@ -337,7 +345,12 @@ def get_fileopentime(line_time):
                         line_time.split(',')[3], '%m/%d/%Y %I:%M:%S %p'
                     )
                 except ValueError:
-                    iso_date = 'Not found.'
+                    try:
+                        iso_date = datetime.strptime(
+                            ' '.join(line_time.split(',')[2:]), '%m/%d/%Y %I:%M %p'
+                        )
+                    except ValueError:
+                        iso_date = 'Not found.'
     return iso_date
 
 
@@ -602,6 +615,47 @@ def split_ppms_data_mpms(data_full, runs):
                 if hasattr(map, 'map'):
                     setattr(map, 'map', block[key])
                 data.m_add_sub_section(MPMSPPMSData.maps, map)
+
+        all_data.append(data)
+
+    return all_data
+
+
+def split_ppms_data_acms(data_full, runs):
+    all_data = []
+    for i in range(len(runs)):
+        block = data_full.iloc[runs[i][2] : runs[i][3]]
+        data = ACMSPPMSData()
+        data.measurement_type = runs[i][0]
+        if data.measurement_type == 'field':
+            data.name = 'Field sweep at ' + str(runs[i][1]) + ' K.'
+        if data.measurement_type == 'temperature':
+            data.name = 'Temperature sweep at ' + str(runs[i][1]) + ' Oe.'
+        data.title = data.name
+        other_data = [
+            key
+            for key in block.keys()
+            if 'ch1' not in key and 'ch2' not in key and 'map' not in key.lower()
+        ]
+        for key in other_data:
+            clean_key = (
+                key.split('(')[0].strip().replace(' ', '_').lower()
+            )  # .replace('time stamp','timestamp')
+            if hasattr(data, clean_key):
+                setattr(
+                    data,
+                    clean_key,
+                    block[key],  # * ureg(data_template[f'{key}/@units'])
+                )
+        map_data = [key for key in block.keys() if 'Map' in key]
+        if map_data:
+            for key in map_data:
+                map = ACMSData()
+                if hasattr(map, 'name'):
+                    setattr(map, 'name', key)
+                if hasattr(map, 'map'):
+                    setattr(map, 'map', block[key])
+                data.m_add_sub_section(ACMSPPMSData.maps, map)
 
         all_data.append(data)
 

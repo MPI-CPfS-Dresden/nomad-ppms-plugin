@@ -34,6 +34,7 @@ from nomad.search import search
 from nomad_material_processing.utils import create_archive
 
 from cpfs_ppms.schema_packages.schema_package import (
+    CPFSPPMSACMSMeasurementDefault,
     CPFSPPMSACTMeasurementDefault,
     CPFSPPMSETOMeasurementDefault,
     CPFSPPMSETOMeasurementLabview,
@@ -62,6 +63,9 @@ configuration = config.get_plugin_entry_point(
 )
 configuration = config.get_plugin_entry_point(
     'cpfs_ppms.parsers:parser_entry_point_data_mpms_default'
+)
+configuration = config.get_plugin_entry_point(
+    'cpfs_ppms.parsers:parser_entry_point_data_acms_default'
 )
 configuration = config.get_plugin_entry_point(
     'cpfs_ppms.parsers:parser_entry_point_sqc'
@@ -172,6 +176,44 @@ class CPFSPPMSMPMSParserDefault(MatchingParser):
         data_file = mainfile.split('/')[-1]
         data_file_with_path = mainfile.split('raw/')[-1]
         entry = CPFSPPMSMPMSMeasurementDefault()
+        entry.data_file = data_file_with_path
+        file_name = f'{data_file[:-4]}.archive.json'
+        # entry.normalize(archive, logger)
+        tic = perf_counter()
+        while True:
+            search_result = search(
+                owner='user',
+                query={
+                    'results.eln.sections:any': ['CPFSPPMSSequenceFile'],
+                    'upload_id:any': [archive.m_context.upload_id],
+                },
+                user_id=archive.metadata.main_author.user_id,
+            )
+            if len(search_result.data) > 0:
+                for sequence in search_result.data:
+                    entry.sequence_file = sequence['search_quantities'][0]['str_value']
+                    logger.info(sequence['search_quantities'][0]['str_value'])
+                    break
+            sleep(0.1)
+            toc = perf_counter()
+            if toc - tic > timethreshold:
+                logger.warning(
+                    "The Sequence File entry/ies in the current upload \
+                               were not found and couldn't be referenced."
+                )
+                break
+        archive.data = CPFSPPMSFile(
+            measurement=create_archive(entry, archive, file_name)
+        )
+        archive.metadata.entry_name = data_file + ' measurement file'
+
+
+class CPFSPPMSACMSParserDefault(MatchingParser):
+    def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
+        timethreshold = 15
+        data_file = mainfile.split('/')[-1]
+        data_file_with_path = mainfile.split('raw/')[-1]
+        entry = CPFSPPMSACMSMeasurementDefault()
         entry.data_file = data_file_with_path
         file_name = f'{data_file[:-4]}.archive.json'
         # entry.normalize(archive, logger)

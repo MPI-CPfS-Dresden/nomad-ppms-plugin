@@ -115,11 +115,13 @@ parser_entry_point_data_eto_default = "cpfs_ppms.parsers:parser_entry_point_data
 parser_entry_point_data_eto_labview = "cpfs_ppms.parsers:parser_entry_point_data_eto_labview"
 parser_entry_point_data_act_default = "cpfs_ppms.parsers:parser_entry_point_data_act_default"
 parser_entry_point_data_mpms_default = "cpfs_ppms.parsers:parser_entry_point_data_mpms_default"
+parser_entry_point_data_acms_default = "cpfs_ppms.parsers:parser_entry_point_data_acms_default"
 parser_entry_point_sqc = "cpfs_ppms.parsers:parser_entry_point_sqc"
 schema_entry_point_eto_default = "cpfs_ppms.schema_packages:schema_entry_point_eto_default"
 schema_entry_point_eto_labview = "cpfs_ppms.schema_packages:schema_entry_point_eto_labview"
 schema_entry_point_act_default = "cpfs_ppms.schema_packages:schema_entry_point_act_default"
 schema_entry_point_mpms_default = "cpfs_ppms.schema_packages:schema_entry_point_mpms_default"
+schema_entry_point_acms_default = "cpfs_ppms.schema_packages:schema_entry_point_acms_default"
 
 
 

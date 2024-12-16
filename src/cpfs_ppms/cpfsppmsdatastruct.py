@@ -861,3 +861,46 @@ class CPFSPPMSMPMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
             self.figures.append(
                 PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
             )
+
+
+class CPFSPPMSACMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
+    temperature_tolerance = Quantity(
+        type=float,
+        unit='kelvin',
+        a_eln=ELNAnnotation(
+            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
+        ),
+    )
+
+    field_tolerance = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        super().normalize(archive, logger)
+
+        ### Start of the PPMSMeasurement normalizer
+
+        if archive.data.sequence_file:
+            logger.info('Parsing PPMS sequence file.')
+            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
+                sequence = file.readlines()
+                self.steps = find_ppms_steps_from_sequence(sequence)
+
+        # Now create the according plots
+        import plotly.express as px
+        from plotly.subplots import make_subplots
+
+        for data in self.data:
+            if data.measurement_type == 'field':
+                magnetization = px.scatter(x=data.magnetic_field, y=data.moment)
+            if data.measurement_type == 'temperature':
+                magnetization = px.scatter(x=data.temperature, y=data.moment)
+            figure1 = make_subplots(rows=1, cols=1, shared_xaxes=True)
+            figure1.add_trace(magnetization.data[0], row=1, col=1)
+            figure1.update_layout(height=400, width=716, title_text=data.name)
+            self.figures.append(
+                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
+            )
