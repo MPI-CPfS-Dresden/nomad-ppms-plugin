@@ -428,7 +428,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                         logger.warning(
                             'Measurement '
                             + mdata.name
-                            + ' did not contain downsweep in field. Using upsweep for both ways.'
+                            + ' did not contain downsweep in field.\
+                                  Using upsweep for both ways.'
                         )
                         upfit = np.interp(
                             fitfield,
@@ -440,7 +441,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                         logger.warning(
                             'Measurement '
                             + mdata.name
-                            + ' did not contain upsweep in field. Using downsweep for both ways.'
+                            + ' did not contain upsweep in field.\
+                                  Using downsweep for both ways.'
                         )
                         downfit = np.interp(
                             fitfield,
@@ -499,7 +501,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                 )
                 with archive.m_context.raw_file(filename, 'w') as outfile:
                     outfile.write(
-                        '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up           mr_down         rho_xy_up       rho_xy_down      \n'
+                        '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up  \
+                                 mr_down         rho_xy_up       rho_xy_down      \n'
                     )
                     for i in range(int(fitlength)):
                         outfile.write(f'{fitfield[i].magnitude:16.8e}')
@@ -627,7 +630,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                 )
                 with archive.m_context.raw_file(filename, 'w') as outfile:
                     outfile.write(
-                        '#Field (Oe)     rho_ohe_up      rho_ahe_up      rho_ahe_down    sigma_ahe_up       sigma_ahe_down      \n'
+                        '#Field (Oe)     rho_ohe_up      rho_ahe_up      rho_ahe_down \
+                              sigma_ahe_up       sigma_ahe_down      \n'
                     )
                     for i in range(int(fitlength)):
                         outfile.write(f'{fitfield[i].magnitude:16.8e}')
@@ -810,6 +814,92 @@ class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
             figure1 = make_subplots(rows=2, cols=1, shared_xaxes=True)
             figure1.add_trace(resistivity_ch1.data[0], row=1, col=1)
             figure1.add_trace(resistivity_ch2.data[0], row=2, col=1)
+            figure1.update_layout(height=400, width=716, title_text=data.name)
+            self.figures.append(
+                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
+            )
+
+
+class CPFSPPMSMPMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
+    temperature_tolerance = Quantity(
+        type=float,
+        unit='kelvin',
+        a_eln=ELNAnnotation(
+            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
+        ),
+    )
+
+    field_tolerance = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        super().normalize(archive, logger)
+
+        ### Start of the PPMSMeasurement normalizer
+
+        if archive.data.sequence_file:
+            logger.info('Parsing PPMS sequence file.')
+            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
+                sequence = file.readlines()
+                self.steps = find_ppms_steps_from_sequence(sequence)
+
+        # Now create the according plots
+        import plotly.express as px
+        from plotly.subplots import make_subplots
+
+        for data in self.data:
+            if data.measurement_type == 'field':
+                magnetization = px.scatter(x=data.magnetic_field, y=data.moment)
+            if data.measurement_type == 'temperature':
+                magnetization = px.scatter(x=data.temperature, y=data.moment)
+            figure1 = make_subplots(rows=1, cols=1, shared_xaxes=True)
+            figure1.add_trace(magnetization.data[0], row=1, col=1)
+            figure1.update_layout(height=400, width=716, title_text=data.name)
+            self.figures.append(
+                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
+            )
+
+
+class CPFSPPMSACMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
+    temperature_tolerance = Quantity(
+        type=float,
+        unit='kelvin',
+        a_eln=ELNAnnotation(
+            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
+        ),
+    )
+
+    field_tolerance = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        super().normalize(archive, logger)
+
+        ### Start of the PPMSMeasurement normalizer
+
+        if archive.data.sequence_file:
+            logger.info('Parsing PPMS sequence file.')
+            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
+                sequence = file.readlines()
+                self.steps = find_ppms_steps_from_sequence(sequence)
+
+        # Now create the according plots
+        import plotly.express as px
+        from plotly.subplots import make_subplots
+
+        for data in self.data:
+            if data.measurement_type == 'field':
+                magnetization = px.scatter(x=data.magnetic_field, y=data.moment)
+            if data.measurement_type == 'temperature':
+                magnetization = px.scatter(x=data.temperature, y=data.moment)
+            figure1 = make_subplots(rows=1, cols=1, shared_xaxes=True)
+            figure1.add_trace(magnetization.data[0], row=1, col=1)
             figure1.update_layout(height=400, width=716, title_text=data.name)
             self.figures.append(
                 PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
