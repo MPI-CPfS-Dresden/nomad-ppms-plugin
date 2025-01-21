@@ -17,45 +17,41 @@
 # limitations under the License.
 #
 
+
 import numpy as np
 import pandas as pd
-import re
-from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
-from nomad.units import ureg
+from nomad.datamodel.data import (
+    EntryData,
+)
 from nomad.datamodel.metainfo.annotations import (
     ELNAnnotation,
     SectionProperties,
 )
+from nomad.datamodel.metainfo.basesections import Measurement
 from nomad.datamodel.metainfo.eln import (
     CompositeSystem,
     SampleID,
 )
+from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
 from nomad.metainfo import (
+    Datetime,
     MEnum,
     Quantity,
     Section,
     SubSection,
 )
-from nomad.datamodel.data import (
-    EntryData,
-)
+from nomad.units import ureg
 from structlog.stdlib import (
     BoundLogger,
 )
-from nomad.metainfo import (
-    Datetime,
-)
-from cpfs_ppms.ppmsdatastruct import (
-    PPMSData
+
+from cpfs_ppms.ppmsdatastruct import PPMSData
+from cpfs_ppms.ppmsfunctions import (
+    find_ppms_steps_from_sequence,
 )
 from cpfs_ppms.ppmssteps import (
     PPMSMeasurementStep,
 )
-from cpfs_ppms.ppmsfunctions import (
-    find_ppms_steps_from_sequence,
-)
-
-from nomad.datamodel.metainfo.basesections import Measurement
 
 
 class CPFSCrystal(EntryData):
@@ -238,6 +234,7 @@ class CPFSETOAnalyzedData(PPMSData):
         type=np.dtype(np.float64), unit='meter**2/volt/second', description='FILL'
     )
 
+
 class CPFSPPMSMeasurement(Measurement):
     m_def = Section(
         a_eln=ELNAnnotation(
@@ -279,11 +276,10 @@ class CPFSPPMSMeasurement(Measurement):
 
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         pass
-        #super().normalize(archive, logger)
+        # super().normalize(archive, logger)
 
 
 class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
-
     temperature_tolerance = Quantity(
         type=float,
         unit='kelvin',
@@ -329,17 +325,15 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
 
         ### Start of the PPMSMeasurement normalizer
 
-        logger.info("AAA")
+        logger.info('AAA')
 
-        self.testfield=1.0
+        self.testfield = 1.0
 
         if archive.data.sequence_file:
             logger.info('Parsing PPMS sequence file.')
             with archive.m_context.raw_file(self.sequence_file, 'r') as file:
                 sequence = file.readlines()
                 self.steps = find_ppms_steps_from_sequence(sequence)
-
-
 
         # Now create the according plots
         import plotly.express as px
@@ -380,7 +374,10 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                     modelist.append('undefined')
             self.channel_measurement_type = modelist
 
-        if 'Hall' in self.channel_measurement_type and 'TMR' in self.channel_measurement_type:
+        if (
+            'Hall' in self.channel_measurement_type
+            and 'TMR' in self.channel_measurement_type
+        ):
             # find biggest fitlength
             maxfield = 90000 * ureg('gauss')
             fitlength = 0
@@ -618,7 +615,9 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
 
                 # create analyzed output files
                 carrierout.write(
-                    f'{ana_data.name.split()[3]}        {ana_data.carrier_concentration.magnitude/1000000.}      {ana_data.carrier_mobility.magnitude*10000.}\n'
+                    f'{ana_data.name.split()[3]}       \
+                          {ana_data.carrier_concentration.magnitude / 1000000.0}    \
+                                {ana_data.carrier_mobility.magnitude * 10000.0}\n'
                 )
                 filename = (
                     'analyzed_data_'
@@ -762,8 +761,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                 PlotlyFigure(label='AHC', figure=figure3.to_plotly_json())
             )
 
-class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
 
+class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
     temperature_tolerance = Quantity(
         type=float,
         unit='kelvin',
@@ -788,8 +787,6 @@ class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
             with archive.m_context.raw_file(self.sequence_file, 'r') as file:
                 sequence = file.readlines()
                 self.steps = find_ppms_steps_from_sequence(sequence)
-
-
 
         # Now create the according plots
         import plotly.express as px

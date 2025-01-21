@@ -34,9 +34,9 @@ from nomad.search import search
 from nomad_material_processing.utils import create_archive
 
 from cpfs_ppms.schema_packages.schema_package import (
+    CPFSPPMSACTMeasurementDefault,
     CPFSPPMSETOMeasurementDefault,
     CPFSPPMSETOMeasurementLabview,
-    CPFSPPMSACTMeasurementDefault,
 )
 
 if TYPE_CHECKING:
@@ -74,7 +74,6 @@ class CPFSPPMSFile(EntryData):
 
 
 class CPFSPPMSETOParserDefault(MatchingParser):
-
     def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
         timethreshold = 15
         data_file = mainfile.split('/')[-1]
@@ -111,8 +110,8 @@ class CPFSPPMSETOParserDefault(MatchingParser):
         )
         archive.metadata.entry_name = data_file + ' measurement file'
 
-class CPFSPPMSETOParserLabview(MatchingParser):
 
+class CPFSPPMSETOParserLabview(MatchingParser):
     def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
         timethreshold = 15
         data_file = mainfile.split('/')[-1]
@@ -125,8 +124,8 @@ class CPFSPPMSETOParserLabview(MatchingParser):
         )
         archive.metadata.entry_name = data_file + ' measurement file'
 
-class CPFSPPMSACTParserDefault(MatchingParser):
 
+class CPFSPPMSACTParserDefault(MatchingParser):
     def parse(self, mainfile: str, archive: EntryArchive, logger) -> None:
         timethreshold = 15
         data_file = mainfile.split('/')[-1]
@@ -170,9 +169,6 @@ class CPFSPPMSSequenceFile(BaseSection, EntryData):
         a_eln=dict(component='FileEditQuantity'),
         a_browser=dict(adaptor='RawFileAdaptor'),
     )
-    entry_type = Quantity(
-        type=str,
-    )
 
 
 class CPFSPPMSSequenceParser(MatchingParser):
@@ -189,7 +185,5 @@ class CPFSPPMSSequenceParser(MatchingParser):
         data_file_with_path = mainfile.split('raw/')[-1]
         # file_name = f'{data_file[:-4]}.archive.json'
         # entry.normalize(archive, logger)
-        archive.data = CPFSPPMSSequenceFile(
-            file_path=data_file_with_path, entry_type='CPFSPPMSSequenceFile'
-        )
+        archive.data = CPFSPPMSSequenceFile(file_path=data_file_with_path)
         archive.metadata.entry_name = data_file + ' sequence file'
