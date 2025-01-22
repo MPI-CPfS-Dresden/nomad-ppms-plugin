@@ -41,15 +41,16 @@ from nomad.metainfo import (
     SubSection,
 )
 from nomad.units import ureg
+from structlog.stdlib import (
+    BoundLogger,
+)
+
 from nomad_ppms_plugin.ppmsdatastruct import PPMSData
 from nomad_ppms_plugin.ppmsfunctions import (
     find_ppms_steps_from_sequence,
 )
 from nomad_ppms_plugin.ppmssteps import (
     PPMSMeasurementStep,
-)
-from structlog.stdlib import (
-    BoundLogger,
 )
 
 

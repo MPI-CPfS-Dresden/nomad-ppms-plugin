@@ -29,6 +29,10 @@ from nomad.datamodel.data import (
 )
 from nomad.datamodel.metainfo.plot import PlotSection
 from nomad.search import search
+from structlog.stdlib import (
+    BoundLogger,
+)
+
 from nomad_ppms_plugin.cpfsppmsdatastruct import (
     CPFSPPMSACMSMeasurement,
     CPFSPPMSACTMeasurement,
@@ -43,9 +47,6 @@ from nomad_ppms_plugin.ppmsfunctions import (
     split_ppms_data_act,
     split_ppms_data_eto,
     split_ppms_data_mpms,
-)
-from structlog.stdlib import (
-    BoundLogger,
 )
 
 if TYPE_CHECKING:

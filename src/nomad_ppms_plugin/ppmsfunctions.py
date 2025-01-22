@@ -20,6 +20,7 @@
 from datetime import datetime
 
 import numpy as np
+
 from nomad_ppms_plugin.ppmsdatastruct import (
     ACMSData,
     ACMSPPMSData,
