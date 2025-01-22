@@ -20,8 +20,7 @@
 from datetime import datetime
 
 import numpy as np
-
-from cpfs_ppms.ppmsdatastruct import (
+from nomad_ppms_plugin.ppmsdatastruct import (
     ACMSData,
     ACMSPPMSData,
     ACTChannelData,
@@ -33,7 +32,7 @@ from cpfs_ppms.ppmsdatastruct import (
     MPMSData,
     MPMSPPMSData,
 )
-from cpfs_ppms.ppmssteps import (
+from nomad_ppms_plugin.ppmssteps import (
     PPMSMeasurementACTResistanceStep,
     PPMSMeasurementETOResistanceStep,
     PPMSMeasurementRemarkStep,

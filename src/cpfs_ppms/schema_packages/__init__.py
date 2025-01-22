@@ -6,7 +6,9 @@ class CPFSPPMSETOEntryPointDefault(SchemaPackageEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.schema_packages.schema_package import m_package_ppms_eto_default
+        from nomad_ppms_plugin.schema_packages.schema_package import (
+            m_package_ppms_eto_default,
+        )
 
         return m_package_ppms_eto_default
 
@@ -15,7 +17,9 @@ class CPFSPPMSETOEntryPointLabview(SchemaPackageEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.schema_packages.schema_package import m_package_ppms_eto_labview
+        from nomad_ppms_plugin.schema_packages.schema_package import (
+            m_package_ppms_eto_labview,
+        )
 
         return m_package_ppms_eto_labview
 
@@ -24,7 +28,9 @@ class CPFSPPMSACTEntryPointDefault(SchemaPackageEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.schema_packages.schema_package import m_package_ppms_act_default
+        from nomad_ppms_plugin.schema_packages.schema_package import (
+            m_package_ppms_act_default,
+        )
 
         return m_package_ppms_act_default
 
@@ -33,7 +39,9 @@ class CPFSPPMSMPMSEntryPointDefault(SchemaPackageEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.schema_packages.schema_package import m_package_ppms_mpms_default
+        from nomad_ppms_plugin.schema_packages.schema_package import (
+            m_package_ppms_mpms_default,
+        )
 
         return m_package_ppms_mpms_default
 
@@ -42,7 +50,9 @@ class CPFSPPMSACMSEntryPointDefault(SchemaPackageEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.schema_packages.schema_package import m_package_ppms_acms_default
+        from nomad_ppms_plugin.schema_packages.schema_package import (
+            m_package_ppms_acms_default,
+        )
 
         return m_package_ppms_acms_default
 

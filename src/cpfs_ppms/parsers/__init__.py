@@ -6,7 +6,7 @@ class DataParserEntryPointETODefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSETOParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSETOParserDefault
 
         return CPFSPPMSETOParserDefault(**self.dict())
 
@@ -24,7 +24,7 @@ class DataParserEntryPointETOLabview(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSETOParserLabview
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSETOParserLabview
 
         return CPFSPPMSETOParserLabview(**self.dict())
 
@@ -42,7 +42,7 @@ class DataParserEntryPointACTDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSACTParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSACTParserDefault
 
         return CPFSPPMSACTParserDefault(**self.dict())
 
@@ -60,7 +60,7 @@ class DataParserEntryPointMPMSDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSMPMSParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSMPMSParserDefault
 
         return CPFSPPMSMPMSParserDefault(**self.dict())
 
@@ -78,7 +78,7 @@ class DataParserEntryPointACMSDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSACMSParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSACMSParserDefault
 
         return CPFSPPMSACMSParserDefault(**self.dict())
 
@@ -96,7 +96,7 @@ class DataParserEntryPointMPMSDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSMPMSParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSMPMSParserDefault
 
         return CPFSPPMSMPMSParserDefault(**self.dict())
 
@@ -114,7 +114,7 @@ class DataParserEntryPointACMSDefault(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSACMSParserDefault
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSACMSParserDefault
 
         return CPFSPPMSACMSParserDefault(**self.dict())
 
@@ -132,7 +132,7 @@ class SqcParserEntryPoint(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
     def load(self):
-        from cpfs_ppms.parsers.parser import CPFSPPMSSequenceParser
+        from nomad_ppms_plugin.parsers.parser import CPFSPPMSSequenceParser
 
         return CPFSPPMSSequenceParser(**self.dict())
 

@@ -32,8 +32,7 @@ from nomad.metainfo import Quantity
 from nomad.parsing import MatchingParser
 from nomad.search import search
 from nomad_material_processing.utils import create_archive
-
-from cpfs_ppms.schema_packages.schema_package import (
+from nomad_ppms_plugin.schema_packages.schema_package import (
     CPFSPPMSACMSMeasurementDefault,
     CPFSPPMSACTMeasurementDefault,
     CPFSPPMSETOMeasurementDefault,
@@ -53,22 +52,22 @@ from nomad.datamodel.metainfo.basesections import (
 )
 
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_data_eto_default'
+    'nomad_ppms_plugin.parsers:parser_entry_point_data_eto_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_data_eto_labview'
+    'nomad_ppms_plugin.parsers:parser_entry_point_data_eto_labview'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_data_act_default'
+    'nomad_ppms_plugin.parsers:parser_entry_point_data_act_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_data_mpms_default'
+    'nomad_ppms_plugin.parsers:parser_entry_point_data_mpms_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_data_acms_default'
+    'nomad_ppms_plugin.parsers:parser_entry_point_data_acms_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.parsers:parser_entry_point_sqc'
+    'nomad_ppms_plugin.parsers:parser_entry_point_sqc'
 )
 
 
@@ -258,7 +257,7 @@ class CPFSPPMSSequenceParser(MatchingParser):
     # def __init__(self):
     #    super().__init__(
     #        name='NOMAD PPMS schema and parser plugin for the CPFS',
-    #        code_name='cpfs_ppms_sequence',
+    #        code_name='nomad_ppms_plugin_sequence',
     #        code_homepage='https://github.com/FAIRmat-NFDI/AreaA-data_modeling_and_schemas',
     #        supported_compressions=['gz', 'bz2', 'xz'],
     #    )

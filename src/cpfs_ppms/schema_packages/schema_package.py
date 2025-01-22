@@ -29,24 +29,23 @@ from nomad.datamodel.data import (
 )
 from nomad.datamodel.metainfo.plot import PlotSection
 from nomad.search import search
-from structlog.stdlib import (
-    BoundLogger,
-)
-
-from cpfs_ppms.cpfsppmsdatastruct import (
+from nomad_ppms_plugin.cpfsppmsdatastruct import (
     CPFSPPMSACMSMeasurement,
     CPFSPPMSACTMeasurement,
     CPFSPPMSETOMeasurement,
     CPFSPPMSMPMSMeasurement,
     CPFSSample,
 )
-from cpfs_ppms.ppmsfunctions import (
+from nomad_ppms_plugin.ppmsfunctions import (
     get_fileopentime,
     get_ppms_steps_from_data,
     split_ppms_data_acms,
     split_ppms_data_act,
     split_ppms_data_eto,
     split_ppms_data_mpms,
+)
+from structlog.stdlib import (
+    BoundLogger,
 )
 
 if TYPE_CHECKING:
@@ -58,19 +57,19 @@ from nomad.config import config
 from nomad.metainfo import SchemaPackage
 
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.schema_packages:schema_entry_point_eto_default'
+    'nomad_ppms_plugin.schema_packages:schema_entry_point_eto_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.schema_packages:schema_entry_point_eto_labview'
+    'nomad_ppms_plugin.schema_packages:schema_entry_point_eto_labview'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.schema_packages:schema_entry_point_act_default'
+    'nomad_ppms_plugin.schema_packages:schema_entry_point_act_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.schema_packages:schema_entry_point_mpms_default'
+    'nomad_ppms_plugin.schema_packages:schema_entry_point_mpms_default'
 )
 configuration = config.get_plugin_entry_point(
-    'cpfs_ppms.schema_packages:schema_entry_point_acms_default'
+    'nomad_ppms_plugin.schema_packages:schema_entry_point_acms_default'
 )
 
 m_package_ppms_eto_default = SchemaPackage()
@@ -141,7 +140,7 @@ class CPFSPPMSETOMeasurementDefault(CPFSPPMSETOMeasurement, PlotSection, EntryDa
                                 user_id=archive.metadata.main_author.user_id,
                             )
                             if len(search_result.data) > 0:
-                                sample.sample_id = f"../uploads/{search_result.data[0]['upload_id']}/archive/{search_result.data[0]['entry_id']}#data"
+                                sample.sample_id = f'../uploads/{search_result.data[0]["upload_id"]}/archive/{search_result.data[0]["entry_id"]}#data'
                                 sample.name = search_result.data[0][
                                     'search_quantities'
                                 ][0]['str_value']
@@ -359,7 +358,7 @@ class CPFSPPMSACTMeasurementDefault(CPFSPPMSACTMeasurement, PlotSection, EntryDa
                                 user_id=archive.metadata.main_author.user_id,
                             )
                             if len(search_result.data) > 0:
-                                sample.sample_id = f"../uploads/{search_result.data[0]['upload_id']}/archive/{search_result.data[0]['entry_id']}#data"
+                                sample.sample_id = f'../uploads/{search_result.data[0]["upload_id"]}/archive/{search_result.data[0]["entry_id"]}#data'
                                 sample.name = search_result.data[0][
                                     'search_quantities'
                                 ][0]['str_value']
