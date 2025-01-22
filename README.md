@@ -1,4 +1,4 @@
-# cpfs_ppms
+# nomad_ppms_plugin
 
 Can read and analyze PPMS files
 
@@ -9,8 +9,8 @@ This `nomad` plugin was generated with `Cookiecutter` along with `@nomad`'s [`co
 
 If you want to develop locally this plugin, clone the project and in the plugin folder, create a virtual environment (you can use Python 3.9, 3.10, or 3.11):
 ```sh
-git clone https://github.com/MPI-CPfS-Dresden/cpfs_ppms.git
-cd cpfs_ppms
+git clone https://github.com/MPI-CPfS-Dresden/nomad_ppms_plugin.git
+cd nomad_ppms_plugin
 python3.11 -m venv .pyenv
 . .pyenv/bin/activate
 ```
@@ -123,7 +123,7 @@ Read the [NOMAD plugin documentation](https://nomad-lab.eu/prod/v1/staging/docs/
 Modify the text file under `/nomad/default_plugins.txt` and add:
 ```sh
 <other-content-in-default_plugins.txt>
-cpfs_ppms==x.y.z
+nomad_ppms_plugin==x.y.z
 ```
 where `x.y.z` represents the released version of this plugin.
 
@@ -151,7 +151,7 @@ python -m build --sdist
 You can install the package with pip:
 
 ```sh
-pip install dist/cpfs_ppms-0.1.0
+pip install dist/nomad_ppms_plugin-0.1.0
 ```
 
 Read more about python packages, `pyproject.toml`, and how to upload packages to PyPI
@@ -160,7 +160,7 @@ on the [PyPI documentation](https://packaging.python.org/en/latest/tutorials/pac
 
 ### Template update
 
-We use cruft to update the project based on template changes. A `cruft-update.yml` is included in Github workflows to automatically check for updates and create pull requests to apply updates. Follow the [instructions](https://github.blog/changelog/2022-05-03-github-actions-prevent-github-actions-from-creating-and-approving-pull-requests/) on how to enable Github Actions to create pull requests. 
+We use cruft to update the project based on template changes. A `cruft-update.yml` is included in Github workflows to automatically check for updates and create pull requests to apply updates. Follow the [instructions](https://github.blog/changelog/2022-05-03-github-actions-prevent-github-actions-from-creating-and-approving-pull-requests/) on how to enable Github Actions to create pull requests.
 
 To run the check for updates locally, follow the instructions on [`cruft` website](https://cruft.github.io/cruft/#updating-a-project).
 

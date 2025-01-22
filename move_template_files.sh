@@ -4,6 +4,6 @@ if ! command -v rsync >/dev/null 2>&1; then
   echo "rsync required, but not installed!"
   exit 1
 else
-  rsync -avh cpfs_ppms/ .
-  rm -rfv cpfs_ppms
+  rsync -avh nomad_ppms_plugin/ .
+  rm -rfv nomad_ppms_plugin
 fi

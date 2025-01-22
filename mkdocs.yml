@@ -1,8 +1,8 @@
-site_name: cpfs_ppms
+site_name: nomad_ppms_plugin
 site_description: Can read and analyze PPMS files
 site_author: Jonathan Noky
 
-repo_url: https://github.com/MPI-CPfS-Dresden/cpfs_ppms
+repo_url: https://github.com/MPI-CPfS-Dresden/nomad_ppms_plugin
 edit_uri: ""
 
 nav:

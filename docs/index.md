@@ -1,4 +1,4 @@
-# Welcome to the `cpfs_ppms` documentation
+# Welcome to the `nomad_ppms_plugin` documentation
 
 Can read and analyze PPMS files
 
