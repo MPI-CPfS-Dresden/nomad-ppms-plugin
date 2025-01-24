@@ -25,11 +25,8 @@ from nomad.datamodel.data import (
 )
 from nomad.datamodel.metainfo.annotations import (
     ELNAnnotation,
-    SectionProperties,
 )
-from nomad.datamodel.metainfo.basesections import Measurement
 from nomad.datamodel.metainfo.eln import (
-    CompositeSystem,
     SampleID,
 )
 from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
@@ -37,20 +34,22 @@ from nomad.metainfo import (
     Datetime,
     MEnum,
     Quantity,
-    Section,
     SubSection,
 )
 from nomad.units import ureg
+from nomad_measurements.ppms.ppmsdatastruct import (
+    PPMSData,
+    PPMSSample,
+)
+from nomad_measurements.ppms.schema import (
+    PPMSACMSMeasurement,
+    PPMSACTMeasurement,
+    PPMSETOMeasurement,
+    PPMSMPMSMeasurement,
+    PPMSResistivityMeasurement,
+)
 from structlog.stdlib import (
     BoundLogger,
-)
-
-from nomad_ppms_plugin.ppmsdatastruct import PPMSData
-from nomad_ppms_plugin.ppmsfunctions import (
-    find_ppms_steps_from_sequence,
-)
-from nomad_ppms_plugin.ppmssteps import (
-    PPMSMeasurementStep,
 )
 
 
@@ -133,14 +132,8 @@ class CPFSCrystal(EntryData):
         super().normalize(archive, logger)
 
 
-class CPFSSample(CompositeSystem):
-    name = Quantity(type=str, description='FILL')
-    type = Quantity(type=str, description='FILL')
-    material = Quantity(type=str, description='FILL')
-    comment = Quantity(type=str, description='FILL')
-    lead_separation = Quantity(type=str, description='FILL')
-    cross_section = Quantity(type=str, description='FILL')
-    sample_id = Quantity(
+class CPFSSample(PPMSSample):
+    reference = Quantity(
         type=CPFSCrystal,
         a_eln=ELNAnnotation(
             component='ReferenceEditQuantity',
@@ -235,65 +228,7 @@ class CPFSETOAnalyzedData(PPMSData):
     )
 
 
-class CPFSPPMSMeasurement(Measurement):
-    m_def = Section(
-        a_eln=ELNAnnotation(
-            properties=SectionProperties(
-                order=[
-                    'name',
-                    'datetime',
-                    'data_file',
-                    'sequence_file',
-                    'description',
-                    'software',
-                    'startupaxis',
-                ],
-            ),
-            lane_width='600px',
-        ),
-    )
-
-    data_file = Quantity(
-        type=str,
-        a_eln=dict(component='FileEditQuantity'),
-        a_browser=dict(adaptor='RawFileAdaptor'),
-    )
-    file_open_time = Quantity(type=str, description='FILL')
-    software = Quantity(type=str, description='FILL')
-
-    steps = SubSection(
-        section_def=PPMSMeasurementStep,
-        repeats=True,
-    )
-
-    data = SubSection(section_def=PPMSData, repeats=True)
-
-    sequence_file = Quantity(
-        type=str,
-        a_eln=dict(component='FileEditQuantity'),
-        a_browser=dict(adaptor='RawFileAdaptor'),
-    )
-
-    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
-        pass
-        # super().normalize(archive, logger)
-
-
-class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
-    temperature_tolerance = Quantity(
-        type=float,
-        unit='kelvin',
-        a_eln=ELNAnnotation(
-            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
-        ),
-    )
-
-    field_tolerance = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
+class CPFSPPMSETOMeasurement(PPMSETOMeasurement, PlotSection, EntryData):
     symmetrized_data = SubSection(
         section_def=CPFSETOSymmetrizedData,
         repeats=True,
@@ -316,51 +251,8 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
         ),
     )
 
-    testfield2 = Quantity(
-        type=float,
-    )
-
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
-
-        ### Start of the PPMSMeasurement normalizer
-
-        logger.info('AAA')
-
-        self.testfield = 1.0
-
-        if archive.data.sequence_file:
-            logger.info('Parsing PPMS sequence file.')
-            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
-                sequence = file.readlines()
-                self.steps = find_ppms_steps_from_sequence(sequence)
-
-        # Now create the according plots
-        import plotly.express as px
-        from plotly.subplots import make_subplots
-
-        for data in self.data:
-            if data.measurement_type == 'field':
-                resistivity_ch1 = px.scatter(
-                    x=data.magnetic_field, y=data.channels[0].resistance
-                )
-                resistivity_ch2 = px.scatter(
-                    x=data.magnetic_field, y=data.channels[1].resistance
-                )
-            if data.measurement_type == 'temperature':
-                resistivity_ch1 = px.scatter(
-                    x=data.temperature, y=data.channels[0].resistance
-                )
-                resistivity_ch2 = px.scatter(
-                    x=data.temperature, y=data.channels[1].resistance
-                )
-            figure1 = make_subplots(rows=2, cols=1, shared_xaxes=True)
-            figure1.add_trace(resistivity_ch1.data[0], row=1, col=1)
-            figure1.add_trace(resistivity_ch2.data[0], row=2, col=1)
-            figure1.update_layout(height=400, width=716, title_text=data.name)
-            self.figures.append(
-                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
-            )
 
         # find measurement modes, for now coming from sample.comment
         if self.samples[0].comment:
@@ -492,58 +384,62 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                         ) / sym_data.rho_xx_up[int(fitlength / 2)]
                 data_symmetrized.append(sym_data)
 
-                # create symmetrized output files
-                filename = (
-                    'symmetrized_data_'
-                    + '_'.join(sym_data.name.split())
-                    + '_'
-                    + self.data_file.strip('.dat')
-                )
-                with archive.m_context.raw_file(filename, 'w') as outfile:
-                    outfile.write(
-                        '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up  \
-                                 mr_down         rho_xy_up       rho_xy_down      \n'
-                    )
-                    for i in range(int(fitlength)):
-                        outfile.write(f'{fitfield[i].magnitude:16.8e}')
-                        if sym_data.rho_xx_up is not None:
-                            outfile.write(f'{sym_data.rho_xx_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if sym_data.rho_xx_down is not None:
-                            outfile.write(f'{sym_data.rho_xx_down[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if sym_data.mr_up is not None:
-                            outfile.write(f'{sym_data.mr_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if sym_data.mr_down is not None:
-                            outfile.write(f'{sym_data.mr_down[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if sym_data.rho_xy_up is not None:
-                            outfile.write(f'{sym_data.rho_xy_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if sym_data.rho_xy_down is not None:
-                            outfile.write(f'{sym_data.rho_xy_down[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        outfile.write('\n')
+                # # create symmetrized output files
+                # filename = (
+                #     'symmetrized_data_'
+                #     + '_'.join(sym_data.name.split())
+                #     + '_'
+                #     + self.data_file.strip('.dat')
+                # )
+                # with archive.m_context.raw_file(filename, 'w') as outfile:
+                #     outfile.write(
+                #         '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up  \
+                #                  mr_down         rho_xy_up       rho_xy_down      \n'
+                #     )
+                #     for i in range(int(fitlength)):
+                #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
+                #         if sym_data.rho_xx_up is not None:
+                #             outfile.write(f'{sym_data.rho_xx_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if sym_data.rho_xx_down is not None:
+                #             outfile.write(
+                # f'{sym_data.rho_xx_down[i].magnitude:16.8e}'
+                # )
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if sym_data.mr_up is not None:
+                #             outfile.write(f'{sym_data.mr_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if sym_data.mr_down is not None:
+                #             outfile.write(f'{sym_data.mr_down[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if sym_data.rho_xy_up is not None:
+                #             outfile.write(f'{sym_data.rho_xy_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if sym_data.rho_xy_down is not None:
+                #             outfile.write(
+                # f'{sym_data.rho_xy_down[i].magnitude:16.8e}'
+                # )
+                #         else:
+                #             outfile.write('NaN             ')
+                #         outfile.write('\n')
 
             self.symmetrized_data = data_symmetrized
 
             # Analyze data: split in ordinary and anomalous, calculate conductivities
-            filename = (
-                'analyzed_data_carrier_mobility_and_concentration_'
-                + '_'
-                + self.data_file.strip('.dat')
-            )
-            carrierout = archive.m_context.raw_file(filename, 'w')
-            carrierout.write(
-                '#Temperature      carrier concentration    carrier mobility\n'
-            )
+            # filename = (
+            #     'analyzed_data_carrier_mobility_and_concentration_'
+            #     + '_'
+            #     + self.data_file.strip('.dat')
+            # )
+            # carrierout = archive.m_context.raw_file(filename, 'w')
+            # carrierout.write(
+            #     '#Temperature      carrier concentration    carrier mobility\n'
+            # )
             cutofffield = 50000 * ureg('gauss')
             data_analyzed = []
             for data in self.symmetrized_data:
@@ -617,50 +513,52 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
                 data_analyzed.append(ana_data)
 
                 # create analyzed output files
-                carrierout.write(
-                    f'{ana_data.name.split()[3]}       \
-                          {ana_data.carrier_concentration.magnitude / 1000000.0}    \
-                                {ana_data.carrier_mobility.magnitude * 10000.0}\n'
-                )
-                filename = (
-                    'analyzed_data_'
-                    + '_'.join(ana_data.name.split())
-                    + '_'
-                    + self.data_file.strip('.dat')
-                )
-                with archive.m_context.raw_file(filename, 'w') as outfile:
-                    outfile.write(
-                        '#Field (Oe)     rho_ohe_up      rho_ahe_up      rho_ahe_down \
-                              sigma_ahe_up       sigma_ahe_down      \n'
-                    )
-                    for i in range(int(fitlength)):
-                        outfile.write(f'{fitfield[i].magnitude:16.8e}')
-                        if ana_data.rho_ohe_up is not None:
-                            outfile.write(f'{ana_data.rho_ohe_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if ana_data.rho_ahe_up is not None:
-                            outfile.write(f'{ana_data.rho_ahe_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if ana_data.rho_ahe_down is not None:
-                            outfile.write(f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if ana_data.sigma_ahe_up is not None:
-                            outfile.write(f'{ana_data.sigma_ahe_up[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        if ana_data.rho_ahe_down is not None:
-                            outfile.write(f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
-                        else:
-                            outfile.write('NaN             ')
-                        outfile.write('\n')
+                # carrierout.write(
+                #     f'{ana_data.name.split()[3]}       \
+                #           {ana_data.carrier_concentration.magnitude / 1000000.0}    \
+                #                 {ana_data.carrier_mobility.magnitude * 10000.0}\n'
+                # )
+                # filename = (
+                #     'analyzed_data_'
+                #     + '_'.join(ana_data.name.split())
+                #     + '_'
+                #     + self.data_file.strip('.dat')
+                # )
+                # with archive.m_context.raw_file(filename, 'w') as outfile:
+                #     outfile.write(
+                #         '#Field (Oe)     rho_ohe_up      rho_ahe_up    rho_ahe_down \
+                #               sigma_ahe_up       sigma_ahe_down      \n'
+                #     )
+                #     for i in range(int(fitlength)):
+                #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
+                #         if ana_data.rho_ohe_up is not None:
+                #             outfile.write(f'{ana_data.rho_ohe_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if ana_data.rho_ahe_up is not None:
+                #             outfile.write(f'{ana_data.rho_ahe_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if ana_data.rho_ahe_down is not None:
+                #             outfile.write(
+                # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if ana_data.sigma_ahe_up is not None:
+                #             outfile.write(
+                # f'{ana_data.sigma_ahe_up[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         if ana_data.rho_ahe_down is not None:
+                #             outfile.write(
+                # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
+                #         else:
+                #             outfile.write('NaN             ')
+                #         outfile.write('\n')
 
             self.analyzed_data = data_analyzed
 
             # Now create the according plots
-            import plotly.express as px
             import plotly.graph_objs as go
             from plotly.subplots import make_subplots
             # self.figures=[]
@@ -766,141 +664,23 @@ class CPFSPPMSETOMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
             )
 
 
-class CPFSPPMSACTMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
-    temperature_tolerance = Quantity(
-        type=float,
-        unit='kelvin',
-        a_eln=ELNAnnotation(
-            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
-        ),
-    )
-
-    field_tolerance = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
+class CPFSPPMSACTMeasurement(PPMSACTMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
-        ### Start of the PPMSMeasurement normalizer
 
-        if archive.data.sequence_file:
-            logger.info('Parsing PPMS sequence file.')
-            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
-                sequence = file.readlines()
-                self.steps = find_ppms_steps_from_sequence(sequence)
-
-        # Now create the according plots
-        import plotly.express as px
-        from plotly.subplots import make_subplots
-
-        for data in self.data:
-            if data.measurement_type == 'field':
-                resistivity_ch1 = px.scatter(
-                    x=data.magnetic_field, y=data.channels[0].resistivity
-                )
-                resistivity_ch2 = px.scatter(
-                    x=data.magnetic_field, y=data.channels[1].resistivity
-                )
-            if data.measurement_type == 'temperature':
-                resistivity_ch1 = px.scatter(
-                    x=data.temperature, y=data.channels[0].resistivity
-                )
-                resistivity_ch2 = px.scatter(
-                    x=data.temperature, y=data.channels[1].resistivity
-                )
-            figure1 = make_subplots(rows=2, cols=1, shared_xaxes=True)
-            figure1.add_trace(resistivity_ch1.data[0], row=1, col=1)
-            figure1.add_trace(resistivity_ch2.data[0], row=2, col=1)
-            figure1.update_layout(height=400, width=716, title_text=data.name)
-            self.figures.append(
-                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
-            )
-
-
-class CPFSPPMSMPMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
-    temperature_tolerance = Quantity(
-        type=float,
-        unit='kelvin',
-        a_eln=ELNAnnotation(
-            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
-        ),
-    )
-
-    field_tolerance = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
+class CPFSPPMSMPMSMeasurement(PPMSMPMSMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
-        ### Start of the PPMSMeasurement normalizer
 
-        if archive.data.sequence_file:
-            logger.info('Parsing PPMS sequence file.')
-            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
-                sequence = file.readlines()
-                self.steps = find_ppms_steps_from_sequence(sequence)
-
-        # Now create the according plots
-        import plotly.express as px
-        from plotly.subplots import make_subplots
-
-        for data in self.data:
-            if data.measurement_type == 'field':
-                magnetization = px.scatter(x=data.magnetic_field, y=data.moment)
-            if data.measurement_type == 'temperature':
-                magnetization = px.scatter(x=data.temperature, y=data.moment)
-            figure1 = make_subplots(rows=1, cols=1, shared_xaxes=True)
-            figure1.add_trace(magnetization.data[0], row=1, col=1)
-            figure1.update_layout(height=400, width=716, title_text=data.name)
-            self.figures.append(
-                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
-            )
-
-
-class CPFSPPMSACMSMeasurement(CPFSPPMSMeasurement, PlotSection, EntryData):
-    temperature_tolerance = Quantity(
-        type=float,
-        unit='kelvin',
-        a_eln=ELNAnnotation(
-            component='NumberEditQuantity', defaultDisplayUnit='kelvin'
-        ),
-    )
-
-    field_tolerance = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
+class CPFSPPMSACMSMeasurement(PPMSACMSMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
-        ### Start of the PPMSMeasurement normalizer
 
-        if archive.data.sequence_file:
-            logger.info('Parsing PPMS sequence file.')
-            with archive.m_context.raw_file(self.sequence_file, 'r') as file:
-                sequence = file.readlines()
-                self.steps = find_ppms_steps_from_sequence(sequence)
-
-        # Now create the according plots
-        import plotly.express as px
-        from plotly.subplots import make_subplots
-
-        for data in self.data:
-            if data.measurement_type == 'field':
-                magnetization = px.scatter(x=data.magnetic_field, y=data.moment)
-            if data.measurement_type == 'temperature':
-                magnetization = px.scatter(x=data.temperature, y=data.moment)
-            figure1 = make_subplots(rows=1, cols=1, shared_xaxes=True)
-            figure1.add_trace(magnetization.data[0], row=1, col=1)
-            figure1.update_layout(height=400, width=716, title_text=data.name)
-            self.figures.append(
-                PlotlyFigure(label=data.name, figure=figure1.to_plotly_json())
-            )
+class CPFSPPMSResistivityMeasurement(
+    PPMSResistivityMeasurement, PlotSection, EntryData
+):
+    def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        super().normalize(archive, logger)
