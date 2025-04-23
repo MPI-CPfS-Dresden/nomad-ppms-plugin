@@ -30,9 +30,9 @@ from nomad.datamodel.data import (
 )
 from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
 from nomad.search import search
-from nomad_measurements.ppms.ppmsfunctions import (
-    get_ppms_steps_from_data,
-    split_ppms_data_eto,
+from nomad_measurements.quantumdesign.qdfunctions import (
+    get_qd_steps_from_data,
+    split_qd_data_eto,
 )
 from structlog.stdlib import (
     BoundLogger,
@@ -216,14 +216,14 @@ class CPFSPPMSETOMeasurementLabview(CPFSPPMSETOMeasurement, PlotSection, EntryDa
 
             data_df['Magnetic Field (Oe)'] = data_df['Magnetic Field (Oe)'] * 10000
 
-            all_steps, runs_list = get_ppms_steps_from_data(
+            all_steps, runs_list = get_qd_steps_from_data(
                 data_df, self.temperature_tolerance, self.field_tolerance
             )
 
             if not self.sequence_file:
                 self.steps = all_steps
 
-            self.data = split_ppms_data_eto(data_df, runs_list)
+            self.data = split_qd_data_eto(data_df, runs_list)
 
             # super().normalize(archive, logger)
             # Now create the according plots
@@ -389,6 +389,96 @@ class CPFSPPMSResistivityMeasurementDefault(
     CPFSPPMSResistivityMeasurement, PlotSection, EntryData
 ):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        if archive.data.data_file:
+            logger.info('Parsing PPMS measurement file.')
+
+            with archive.m_context.raw_file(self.data_file, 'r') as file:
+                data = file.read()
+
+            header_match = re.search(r'\[Header\](.*?)\[Data\]', data, re.DOTALL)
+            header_section = header_match.group(1).strip()
+            header_lines = header_section.split('\n')
+            if len(self.samples) == 0:
+                for i in ['1', '2']:
+                    sample_headers = [
+                        line
+                        for line in header_lines
+                        if line.startswith('INFO') and 'SAMPLE' + i + '_' in line
+                    ]
+                    sample = CPFSSample()
+                    for line in sample_headers:
+                        parts = re.split(r',\s*', line)
+                        key = parts[-1].lower().replace('sample' + i + '_', '')
+                        if key == 'material':
+                            for line2 in parts[1:-1]:
+                                if line2.startswith('l='):
+                                    setattr(
+                                        sample,
+                                        'length',
+                                        float(line2.strip('l=').strip('mm')) / 1000.0,
+                                    )
+                                if line2.startswith('w='):
+                                    setattr(
+                                        sample,
+                                        'width',
+                                        float(line2.strip('w=').strip('mm')) / 1000.0,
+                                    )
+                                if line2.startswith('t='):
+                                    setattr(
+                                        sample,
+                                        'depth',
+                                        float(line2.strip('t=').strip('mm')) / 1000.0,
+                                    )
+                        if key == 'comment':
+                            setattr(sample, key, ', '.join(parts[1:-1]))
+                            # ids="_".join(parts[1].split("_")[1:3])
+                            ids = parts[1].split('_')[1]
+                            logger.info(ids)
+
+                            if not isinstance(archive.m_context, ClientContext):
+                                search_result = search(
+                                    owner='user',
+                                    query={
+                                        'results.eln.sections:any': ['CPFSCrystal'],
+                                        'results.eln.names:any': [ids + r'*'],
+                                    },
+                                    user_id=archive.metadata.main_author.user_id,
+                                )
+                                if len(search_result.data) > 0:
+                                    sample.sample_id = f'../uploads/{search_result.data[0]["upload_id"]}/archive/{search_result.data[0]["entry_id"]}#data'
+                                    sample.name = search_result.data[0][
+                                        'search_quantities'
+                                    ][0]['str_value']
+                                else:
+                                    logger.warning(
+                                        "The sample given in the header could not be found and couldn't be referenced."
+                                    )
+                        elif hasattr(sample, key):
+                            setattr(sample, key, ', '.join(parts[1:-1]))
+                    if not sample.length:
+                        logger.info(
+                            'Length for sample '
+                            + str(i)
+                            + ' not found, set to 1. Value of resistivity will be wrong.'
+                        )
+                        setattr(sample, 'length', 1.0)
+                    if not sample.width:
+                        logger.info(
+                            'Width for sample '
+                            + str(i)
+                            + ' not found, set to 1. Value of resistivity will be wrong.'
+                        )
+                        setattr(sample, 'width', 1.0)
+                    if not sample.depth:
+                        logger.info(
+                            'Depth for sample '
+                            + str(i)
+                            + ' not found, set to 1. Value of resistivity will be wrong.'
+                        )
+                        setattr(sample, 'depth', 1.0)
+                    self.m_add_sub_section(
+                        CPFSPPMSResistivityMeasurementDefault.samples, sample
+                    )
         super().normalize(archive, logger)
 
 

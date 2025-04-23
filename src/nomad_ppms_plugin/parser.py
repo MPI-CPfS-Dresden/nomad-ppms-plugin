@@ -21,12 +21,12 @@ from typing import (
 )
 
 from nomad.datamodel import EntryArchive
-from nomad_measurements.ppms.parser import (
-    PPMSACMSParser,
-    PPMSACTParser,
-    PPMSETOParser,
-    PPMSMPMSParser,
-    PPMSResistivityParser,
+from nomad_measurements.quantumdesign.parser import (
+    QDACMSParser,
+    QDACTParser,
+    QDETOParser,
+    QDMPMSParser,
+    QDResistivityParser,
 )
 
 from nomad_ppms_plugin.schema_package import (
@@ -56,7 +56,7 @@ configuration = config.get_plugin_entry_point(
 )
 
 
-class CPFSPPMSETOParserDefault(PPMSETOParser):
+class CPFSPPMSETOParserDefault(QDETOParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSETOMeasurementDefault
 
@@ -64,7 +64,7 @@ class CPFSPPMSETOParserDefault(PPMSETOParser):
         super().parse(mainfile, archive, logger)
 
 
-class CPFSPPMSETOParserLabview(PPMSETOParser):
+class CPFSPPMSETOParserLabview(QDETOParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSETOMeasurementLabview
 
@@ -72,7 +72,7 @@ class CPFSPPMSETOParserLabview(PPMSETOParser):
         super().parse(mainfile, archive, logger)
 
 
-class CPFSPPMSACTParserDefault(PPMSACTParser):
+class CPFSPPMSACTParserDefault(QDACTParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSACTMeasurementDefault
 
@@ -80,7 +80,7 @@ class CPFSPPMSACTParserDefault(PPMSACTParser):
         super().parse(mainfile, archive, logger)
 
 
-class CPFSPPMSMPMSParserDefault(PPMSMPMSParser):
+class CPFSPPMSMPMSParserDefault(QDMPMSParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSMPMSMeasurementDefault
 
@@ -88,7 +88,7 @@ class CPFSPPMSMPMSParserDefault(PPMSMPMSParser):
         super().parse(mainfile, archive, logger)
 
 
-class CPFSPPMSACMSParserDefault(PPMSACMSParser):
+class CPFSPPMSACMSParserDefault(QDACMSParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSACMSMeasurementDefault
 
@@ -96,7 +96,7 @@ class CPFSPPMSACMSParserDefault(PPMSACMSParser):
         super().parse(mainfile, archive, logger)
 
 
-class CPFSPPMSResisitivityParserDefault(PPMSResistivityParser):
+class CPFSPPMSResisitivityParserDefault(QDResistivityParser):
     def set_entrydata_definition(self):
         self.entrydata_definition = CPFSPPMSResistivityMeasurementDefault
 

@@ -37,20 +37,315 @@ from nomad.metainfo import (
     SubSection,
 )
 from nomad.units import ureg
-from nomad_measurements.ppms.ppmsdatastruct import (
-    PPMSData,
-    PPMSSample,
+from nomad_measurements.quantumdesign.qddatastruct import (
+    QDData,
+    QDSample,
 )
-from nomad_measurements.ppms.schema import (
-    PPMSACMSMeasurement,
-    PPMSACTMeasurement,
-    PPMSETOMeasurement,
-    PPMSMPMSMeasurement,
-    PPMSResistivityMeasurement,
+from nomad_measurements.quantumdesign.schema import (
+    QDACMSMeasurement,
+    QDACTMeasurement,
+    QDETOMeasurement,
+    QDMPMSMeasurement,
+    QDResistivityMeasurement,
 )
 from structlog.stdlib import (
     BoundLogger,
 )
+
+
+def findfitfieldandlength(data, maxfield=90000 * ureg('gauss')):
+    fitlength = 0
+    for mdata in data:
+        fitlength = max(len(mdata.magnetic_field) / 4, fitlength)
+    fitlength -= fitlength % -100
+    fitlength += 1
+    fitfield = np.linspace(-maxfield, maxfield, int(fitlength))
+    return fitfield, fitlength
+
+
+def returndata(single, key):
+    if '.' in key:
+        if '[' in key:
+            index = int(key.split('[')[1].split(']')[0])
+            data_obj = getattr(single, key.split('[')[0])[index]
+        else:
+            data_obj = getattr(single, key.split('.')[0])
+        mod_key = key.split('.')[1]
+    else:
+        data_obj = single
+        mod_key = key
+    return getattr(data_obj, mod_key)
+
+
+def symmetrizedata(  # noqa: PLR0912, PLR0913
+    data,
+    symdataclass,
+    fitfield,
+    fitlength,
+    field_tolerance,
+    channel_measurement_type,
+    samples,
+    logger,
+    res_list,
+    maxfield=90000 * ureg('gauss'),
+):
+    data_symmetrized = []
+    for mdata in data:
+        # For now only for field sweeps
+        if not mdata.name.startswith('Field sweep'):
+            continue
+        sym_data = symdataclass()
+        sym_data.name = mdata.name
+        sym_data.title = mdata.name
+        sym_data.field = fitfield
+        for channel in [0, 1]:
+            resistance = returndata(mdata, res_list[channel])
+            field = mdata.magnetic_field[np.invert(pd.isnull(resistance))]
+            res = resistance[np.invert(pd.isnull(resistance))]
+            # Check if field sweeps down and up:
+            downsweep = []
+            upsweep = []
+            for i in range(len(field)):
+                if abs(field[i] - maxfield) < field_tolerance:
+                    if len(downsweep) == 0:
+                        downsweep.append(i)  # downsweep started
+                    if len(upsweep) == 1:
+                        upsweep.append(i)  # upsweep finished
+                if abs(field[i] + maxfield) < field_tolerance:
+                    if len(downsweep) == 1:
+                        downsweep.append(i)  # downsweep finished
+                    if len(upsweep) == 0:
+                        upsweep.append(i)  # upsweep started
+            if len(upsweep) != 2 and len(downsweep) != 2:  # noqa: PLR2004
+                logger.warning(
+                    'Measurement '
+                    + mdata.name
+                    + ' did not contain up- and downsweep in field.'
+                )
+                continue
+            elif len(downsweep) != 2:  # noqa: PLR2004
+                logger.warning(
+                    'Measurement '
+                    + mdata.name
+                    + ' did not contain downsweep in field.\
+                            Using upsweep for both ways.'
+                )
+                upfit = np.interp(
+                    fitfield,
+                    field[upsweep[0] : upsweep[1]],
+                    res[upsweep[0] : upsweep[1]],
+                )
+                downfit = upfit
+            elif len(upsweep) != 2:  # noqa: PLR2004
+                logger.warning(
+                    'Measurement '
+                    + mdata.name
+                    + ' did not contain upsweep in field.\
+                            Using downsweep for both ways.'
+                )
+                downfit = np.interp(
+                    fitfield,
+                    np.flip(field[downsweep[0] : downsweep[1]]),
+                    np.flip(res[downsweep[0] : downsweep[1]]),
+                )
+                upfit = downfit
+            else:
+                downfit = np.interp(
+                    fitfield,
+                    np.flip(field[downsweep[0] : downsweep[1]]),
+                    np.flip(res[downsweep[0] : downsweep[1]]),
+                )
+                upfit = np.interp(
+                    fitfield,
+                    field[upsweep[0] : upsweep[1]],
+                    res[upsweep[0] : upsweep[1]],
+                )
+            if channel_measurement_type[channel] == 'Hall':
+                intermediate = (upfit + np.flip(downfit)) / 2.0
+                sym_data.rho_xy_down = (downfit - np.flip(intermediate)) * samples[
+                    channel
+                ].depth
+                sym_data.rho_xy_up = (upfit - intermediate) * samples[channel].depth
+            if channel_measurement_type[channel] == 'TMR':
+                intermediate = (np.flip(downfit) - upfit) / 2.0
+                sym_data.rho_xx_down = (
+                    (downfit + np.flip(intermediate))
+                    * samples[channel].depth
+                    * samples[channel].width
+                    / samples[channel].length
+                )
+                sym_data.rho_xx_up = (
+                    (upfit - intermediate)
+                    * samples[channel].depth
+                    * samples[channel].width
+                    / samples[channel].length
+                )
+                sym_data.mr_down = (
+                    sym_data.rho_xx_down - sym_data.rho_xx_down[int(fitlength / 2)]
+                ) / sym_data.rho_xx_down[int(fitlength / 2)]
+                sym_data.mr_up = (
+                    sym_data.rho_xx_up - sym_data.rho_xx_up[int(fitlength / 2)]
+                ) / sym_data.rho_xx_up[int(fitlength / 2)]
+        data_symmetrized.append(sym_data)
+    return data_symmetrized
+
+
+def analyzedata(symmetrized_data, anadataclass, cutofffield=50000 * ureg('gauss')):
+    cutofffield = 50000 * ureg('gauss')
+    data_analyzed = []
+    for data in symmetrized_data:
+        ana_data = anadataclass()
+        ana_data.name = data.name
+        ana_data.title = data.name
+        ana_data.field = data.field
+        ana_data.rho_xx_up = data.rho_xx_up
+        ana_data.rho_xx_down = data.rho_xx_down
+        ana_data.sigma_xx_up = 1.0 / data.rho_xx_up
+        ana_data.sigma_xx_down = 1.0 / data.rho_xx_down
+
+        fitstart = int(len(data.field) * (180000 - cutofffield.magnitude) / 180000)
+        rho_xy_up_fit = (
+            np.poly1d(
+                [
+                    np.polyfit(
+                        data.field[fitstart:].magnitude,
+                        data.rho_xy_up[fitstart:].magnitude,
+                        1,
+                    )[0],
+                    0,
+                ]
+            )
+            * data.rho_xy_up.units
+        )
+        rho_xy_down_fit = (
+            np.poly1d(
+                [
+                    np.polyfit(
+                        data.field[fitstart:].magnitude,
+                        data.rho_xy_down[fitstart:].magnitude,
+                        1,
+                    )[0],
+                    0,
+                ]
+            )
+            * data.rho_xy_down.units
+        )
+        ana_data.rho_ohe_up = rho_xy_up_fit(ana_data.field.magnitude)
+        ana_data.rho_ohe_down = rho_xy_down_fit(ana_data.field.magnitude)
+        ana_data.rho_ahe_up = data.rho_xy_up - ana_data.rho_ohe_up
+        ana_data.rho_ahe_down = data.rho_xy_down - ana_data.rho_ohe_down
+        ana_data.sigma_ahe_up = ana_data.rho_ahe_up / (
+            ana_data.rho_ahe_up**2 + data.rho_xx_up**2
+        )
+        ana_data.sigma_ahe_down = ana_data.rho_ahe_down / (
+            ana_data.rho_ahe_down**2 + data.rho_xx_down**2
+        )
+
+        ana_data.carrier_concentration = 1.0 / (
+            (
+                np.polyfit(
+                    data.field[fitstart:].magnitude,
+                    data.rho_xy_up[fitstart:].magnitude,
+                    1,
+                )[0]
+                * data.rho_xy_up.units
+                / data.field.units
+            )
+            * (1.60217663 * 10**-19 * ureg('coulomb'))
+        )
+        ana_data.carrier_mobility = 1.0 / (
+            ana_data.carrier_concentration
+            * (1.60217663 * 10**-19 * ureg('coulomb'))
+            * ana_data.rho_xx_up[int(len(ana_data.rho_xx_up) / 2)]
+        )
+
+        data_analyzed.append(ana_data)
+    return data_analyzed
+
+
+def createsymandanaplots(symmetrized_data, analyzed_data, figures):
+    import plotly.graph_objs as go
+    from plotly.subplots import make_subplots
+
+    # Symmetrized plots
+    figure1 = make_subplots(rows=1, cols=1, subplot_titles=(['TMR']))
+    figure2 = make_subplots(rows=1, cols=1, subplot_titles=(['MR']))
+    figure3 = make_subplots(rows=1, cols=1, subplot_titles=(['Hall']))
+    for data in symmetrized_data:
+        color = int(255.0 / len(symmetrized_data) * symmetrized_data.index(data))
+        if data.rho_xx_up is not None and data.rho_xx_down is not None:
+            resistivity_tmr_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.rho_xx_up, np.flip(data.rho_xx_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure1.add_trace(resistivity_tmr_up, row=1, col=1)
+        if data.mr_up is not None and data.mr_down is not None:
+            resistivity_mr_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.mr_up, np.flip(data.mr_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure2.add_trace(resistivity_mr_up, row=1, col=1)
+        if data.rho_xy_up is not None:
+            resistivity_hall_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.rho_xy_up, np.flip(data.rho_xy_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure3.add_trace(resistivity_hall_up, row=1, col=1)
+    figure1.update_layout(height=400, width=716, showlegend=True)
+    figure2.update_layout(height=400, width=716, showlegend=True)
+    figure3.update_layout(height=400, width=716, showlegend=True)
+    figures.append(PlotlyFigure(label='TMR', figure=figure1.to_plotly_json()))
+    figures.append(PlotlyFigure(label='MR', figure=figure2.to_plotly_json()))
+    figures.append(PlotlyFigure(label='Hall', figure=figure3.to_plotly_json()))
+
+    # Analyzed plots
+    figure1 = make_subplots(rows=1, cols=1, subplot_titles=(['OHR']))
+    figure2 = make_subplots(rows=1, cols=1, subplot_titles=(['AHR']))
+    figure3 = make_subplots(rows=1, cols=1, subplot_titles=(['AHC']))
+    for data in analyzed_data:
+        color = int(255.0 / len(analyzed_data) * analyzed_data.index(data))
+        if data.rho_ohe_up is not None and data.rho_ohe_down is not None:
+            resistivity_tmr_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.rho_ohe_up, np.flip(data.rho_ohe_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure1.add_trace(resistivity_tmr_up, row=1, col=1)
+        if data.rho_ahe_up is not None and data.rho_ahe_down is not None:
+            resistivity_mr_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.rho_ahe_up, np.flip(data.rho_ahe_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure2.add_trace(resistivity_mr_up, row=1, col=1)
+        if data.sigma_ahe_up is not None and data.sigma_ahe_down is not None:
+            resistivity_hall_up = go.Scatter(
+                x=np.concatenate((data.field, np.flip(data.field))),
+                y=np.concatenate((data.sigma_ahe_up, np.flip(data.sigma_ahe_down))),
+                name=data.title.split('at')[1].strip('.'),
+                marker_color=f'rgb({color},0,255)',
+                showlegend=True,
+            )
+            figure3.add_trace(resistivity_hall_up, row=1, col=1)
+    figure1.update_layout(height=400, width=716, showlegend=True)
+    figure2.update_layout(height=400, width=716, showlegend=True)
+    figure3.update_layout(height=400, width=716, showlegend=True)
+    figures.append(PlotlyFigure(label='OHR', figure=figure1.to_plotly_json()))
+    figures.append(PlotlyFigure(label='AHR', figure=figure2.to_plotly_json()))
+    figures.append(PlotlyFigure(label='AHC', figure=figure3.to_plotly_json()))
 
 
 class CPFSCrystal(EntryData):
@@ -132,7 +427,7 @@ class CPFSCrystal(EntryData):
         super().normalize(archive, logger)
 
 
-class CPFSSample(PPMSSample):
+class CPFSSample(QDSample):
     reference = Quantity(
         type=CPFSCrystal,
         a_eln=ELNAnnotation(
@@ -162,7 +457,7 @@ class CPFSSample(PPMSSample):
     )
 
 
-class CPFSETOSymmetrizedData(PPMSData):
+class CPFSETOSymmetrizedData(QDData):
     field = Quantity(
         type=np.dtype(np.float64), unit='gauss', shape=['*'], description='FILL'
     )
@@ -186,7 +481,7 @@ class CPFSETOSymmetrizedData(PPMSData):
     )
 
 
-class CPFSETOAnalyzedData(PPMSData):
+class CPFSETOAnalyzedData(QDData):
     field = Quantity(
         type=np.dtype(np.float64), unit='gauss', shape=['*'], description='FILL'
     )
@@ -228,7 +523,7 @@ class CPFSETOAnalyzedData(PPMSData):
     )
 
 
-class CPFSPPMSETOMeasurement(PPMSETOMeasurement, PlotSection, EntryData):
+class CPFSPPMSETOMeasurement(QDETOMeasurement, PlotSection, EntryData):
     symmetrized_data = SubSection(
         section_def=CPFSETOSymmetrizedData,
         repeats=True,
@@ -251,8 +546,26 @@ class CPFSPPMSETOMeasurement(PPMSETOMeasurement, PlotSection, EntryData):
         ),
     )
 
+    maxfield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    cutofffield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
+
+        # For automatic analysis, some parameters are needed:
+        if not self.maxfield:
+            self.maxfield = 90000
+        if not self.cutofffield:
+            self.cutofffield = 50000
 
         # find measurement modes, for now coming from sample.comment
         if self.samples[0].comment:
@@ -271,162 +584,65 @@ class CPFSPPMSETOMeasurement(PPMSETOMeasurement, PlotSection, EntryData):
             and 'TMR' in self.channel_measurement_type
         ):
             # find biggest fitlength
-            maxfield = 90000 * ureg('gauss')
-            fitlength = 0
-            for mdata in self.data:
-                fitlength = max(len(mdata.magnetic_field) / 4, fitlength)
-            fitlength -= fitlength % -100
-            fitlength += 1
-            fitfield = np.linspace(-maxfield, maxfield, int(fitlength))
+            fitfield, fitlength = findfitfieldandlength(self.data)
             # Try to symmetrize data for each measurement
-            data_symmetrized = []
-            for mdata in self.data:
-                # For now only for field sweeps
-                if not mdata.name.startswith('Field sweep'):
-                    continue
-                sym_data = CPFSETOSymmetrizedData()
-                sym_data.name = mdata.name
-                sym_data.title = mdata.name
-                sym_data.field = fitfield
-                for channel in [0, 1]:
-                    field = mdata.magnetic_field[
-                        np.invert(pd.isnull(mdata.channels[channel].resistance))
-                    ]
-                    res = mdata.channels[channel].resistance[
-                        np.invert(pd.isnull(mdata.channels[channel].resistance))
-                    ]
-                    # Check if field sweeps down and up:
-                    downsweep = []
-                    upsweep = []
-                    for i in range(len(field)):
-                        if abs(field[i] - maxfield) < self.field_tolerance:
-                            if len(downsweep) == 0:
-                                downsweep.append(i)  # downsweep started
-                            if len(upsweep) == 1:
-                                upsweep.append(i)  # upsweep finished
-                        if abs(field[i] + maxfield) < self.field_tolerance:
-                            if len(downsweep) == 1:
-                                downsweep.append(i)  # downsweep finished
-                            if len(upsweep) == 0:
-                                upsweep.append(i)  # upsweep started
-                    if len(upsweep) != 2 and len(downsweep) != 2:  # noqa: PLR2004
-                        logger.warning(
-                            'Measurement '
-                            + mdata.name
-                            + ' did not contain up- and downsweep in field.'
-                        )
-                        continue
-                    elif len(downsweep) != 2:  # noqa: PLR2004
-                        logger.warning(
-                            'Measurement '
-                            + mdata.name
-                            + ' did not contain downsweep in field.\
-                                  Using upsweep for both ways.'
-                        )
-                        upfit = np.interp(
-                            fitfield,
-                            field[upsweep[0] : upsweep[1]],
-                            res[upsweep[0] : upsweep[1]],
-                        )
-                        downfit = upfit
-                    elif len(upsweep) != 2:  # noqa: PLR2004
-                        logger.warning(
-                            'Measurement '
-                            + mdata.name
-                            + ' did not contain upsweep in field.\
-                                  Using downsweep for both ways.'
-                        )
-                        downfit = np.interp(
-                            fitfield,
-                            np.flip(field[downsweep[0] : downsweep[1]]),
-                            np.flip(res[downsweep[0] : downsweep[1]]),
-                        )
-                        upfit = downfit
-                    else:
-                        downfit = np.interp(
-                            fitfield,
-                            np.flip(field[downsweep[0] : downsweep[1]]),
-                            np.flip(res[downsweep[0] : downsweep[1]]),
-                        )
-                        upfit = np.interp(
-                            fitfield,
-                            field[upsweep[0] : upsweep[1]],
-                            res[upsweep[0] : upsweep[1]],
-                        )
-                    if self.channel_measurement_type[channel] == 'Hall':
-                        intermediate = (upfit + np.flip(downfit)) / 2.0
-                        sym_data.rho_xy_down = (
-                            downfit - np.flip(intermediate)
-                        ) * self.samples[channel].depth
-                        sym_data.rho_xy_up = (upfit - intermediate) * self.samples[
-                            channel
-                        ].depth
-                    if self.channel_measurement_type[channel] == 'TMR':
-                        intermediate = (np.flip(downfit) - upfit) / 2.0
-                        sym_data.rho_xx_down = (
-                            (downfit + np.flip(intermediate))
-                            * self.samples[channel].depth
-                            * self.samples[channel].width
-                            / self.samples[channel].length
-                        )
-                        sym_data.rho_xx_up = (
-                            (upfit - intermediate)
-                            * self.samples[channel].depth
-                            * self.samples[channel].width
-                            / self.samples[channel].length
-                        )
-                        sym_data.mr_down = (
-                            sym_data.rho_xx_down
-                            - sym_data.rho_xx_down[int(fitlength / 2)]
-                        ) / sym_data.rho_xx_down[int(fitlength / 2)]
-                        sym_data.mr_up = (
-                            sym_data.rho_xx_up - sym_data.rho_xx_up[int(fitlength / 2)]
-                        ) / sym_data.rho_xx_up[int(fitlength / 2)]
-                data_symmetrized.append(sym_data)
+            res_list = ['channels[0].resistance', 'channels[1].resistance']
+            data_symmetrized = symmetrizedata(
+                self.data,
+                CPFSETOSymmetrizedData,
+                fitfield,
+                fitlength,
+                self.field_tolerance,
+                self.channel_measurement_type,
+                self.samples,
+                logger,
+                res_list,
+                self.maxfield,
+            )
 
-                # # create symmetrized output files
-                # filename = (
-                #     'symmetrized_data_'
-                #     + '_'.join(sym_data.name.split())
-                #     + '_'
-                #     + self.data_file.strip('.dat')
-                # )
-                # with archive.m_context.raw_file(filename, 'w') as outfile:
-                #     outfile.write(
-                #         '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up  \
-                #                  mr_down         rho_xy_up       rho_xy_down      \n'
-                #     )
-                #     for i in range(int(fitlength)):
-                #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
-                #         if sym_data.rho_xx_up is not None:
-                #             outfile.write(f'{sym_data.rho_xx_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if sym_data.rho_xx_down is not None:
-                #             outfile.write(
-                # f'{sym_data.rho_xx_down[i].magnitude:16.8e}'
-                # )
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if sym_data.mr_up is not None:
-                #             outfile.write(f'{sym_data.mr_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if sym_data.mr_down is not None:
-                #             outfile.write(f'{sym_data.mr_down[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if sym_data.rho_xy_up is not None:
-                #             outfile.write(f'{sym_data.rho_xy_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if sym_data.rho_xy_down is not None:
-                #             outfile.write(
-                # f'{sym_data.rho_xy_down[i].magnitude:16.8e}'
-                # )
-                #         else:
-                #             outfile.write('NaN             ')
-                #         outfile.write('\n')
+            # # create symmetrized output files
+            # filename = (
+            #     'symmetrized_data_'
+            #     + '_'.join(sym_data.name.split())
+            #     + '_'
+            #     + self.data_file.strip('.dat')
+            # )
+            # with archive.m_context.raw_file(filename, 'w') as outfile:
+            #     outfile.write(
+            #         '#Field (Oe)     rho_xx_up       rho_xx_down      mr_up  \
+            #                  mr_down         rho_xy_up       rho_xy_down      \n'
+            #     )
+            #     for i in range(int(fitlength)):
+            #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
+            #         if sym_data.rho_xx_up is not None:
+            #             outfile.write(f'{sym_data.rho_xx_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if sym_data.rho_xx_down is not None:
+            #             outfile.write(
+            # f'{sym_data.rho_xx_down[i].magnitude:16.8e}'
+            # )
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if sym_data.mr_up is not None:
+            #             outfile.write(f'{sym_data.mr_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if sym_data.mr_down is not None:
+            #             outfile.write(f'{sym_data.mr_down[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if sym_data.rho_xy_up is not None:
+            #             outfile.write(f'{sym_data.rho_xy_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if sym_data.rho_xy_down is not None:
+            #             outfile.write(
+            # f'{sym_data.rho_xy_down[i].magnitude:16.8e}'
+            # )
+            #         else:
+            #             outfile.write('NaN             ')
+            #         outfile.write('\n')
 
             self.symmetrized_data = data_symmetrized
 
@@ -440,247 +656,164 @@ class CPFSPPMSETOMeasurement(PPMSETOMeasurement, PlotSection, EntryData):
             # carrierout.write(
             #     '#Temperature      carrier concentration    carrier mobility\n'
             # )
-            cutofffield = 50000 * ureg('gauss')
-            data_analyzed = []
-            for data in self.symmetrized_data:
-                ana_data = CPFSETOAnalyzedData()
-                ana_data.name = data.name
-                ana_data.title = data.name
-                ana_data.field = data.field
-                ana_data.rho_xx_up = data.rho_xx_up
-                ana_data.rho_xx_down = data.rho_xx_down
-                ana_data.sigma_xx_up = 1.0 / data.rho_xx_up
-                ana_data.sigma_xx_down = 1.0 / data.rho_xx_down
 
-                fitstart = int(
-                    len(data.field) * (180000 - cutofffield.magnitude) / 180000
-                )
-                rho_xy_up_fit = (
-                    np.poly1d(
-                        [
-                            np.polyfit(
-                                data.field[fitstart:].magnitude,
-                                data.rho_xy_up[fitstart:].magnitude,
-                                1,
-                            )[0],
-                            0,
-                        ]
-                    )
-                    * data.rho_xy_up.units
-                )
-                rho_xy_down_fit = (
-                    np.poly1d(
-                        [
-                            np.polyfit(
-                                data.field[fitstart:].magnitude,
-                                data.rho_xy_down[fitstart:].magnitude,
-                                1,
-                            )[0],
-                            0,
-                        ]
-                    )
-                    * data.rho_xy_down.units
-                )
-                ana_data.rho_ohe_up = rho_xy_up_fit(ana_data.field.magnitude)
-                ana_data.rho_ohe_down = rho_xy_down_fit(ana_data.field.magnitude)
-                ana_data.rho_ahe_up = data.rho_xy_up - ana_data.rho_ohe_up
-                ana_data.rho_ahe_down = data.rho_xy_down - ana_data.rho_ohe_down
-                ana_data.sigma_ahe_up = ana_data.rho_ahe_up / (
-                    ana_data.rho_ahe_up**2 + data.rho_xx_up**2
-                )
-                ana_data.sigma_ahe_down = ana_data.rho_ahe_down / (
-                    ana_data.rho_ahe_down**2 + data.rho_xx_down**2
-                )
-
-                ana_data.carrier_concentration = 1.0 / (
-                    (
-                        np.polyfit(
-                            data.field[fitstart:].magnitude,
-                            data.rho_xy_up[fitstart:].magnitude,
-                            1,
-                        )[0]
-                        * data.rho_xy_up.units
-                        / data.field.units
-                    )
-                    * (1.60217663 * 10**-19 * ureg('coulomb'))
-                )
-                ana_data.carrier_mobility = 1.0 / (
-                    ana_data.carrier_concentration
-                    * (1.60217663 * 10**-19 * ureg('coulomb'))
-                    * ana_data.rho_xx_up[int(len(ana_data.rho_xx_up) / 2)]
-                )
-
-                data_analyzed.append(ana_data)
-
-                # create analyzed output files
-                # carrierout.write(
-                #     f'{ana_data.name.split()[3]}       \
-                #           {ana_data.carrier_concentration.magnitude / 1000000.0}    \
-                #                 {ana_data.carrier_mobility.magnitude * 10000.0}\n'
-                # )
-                # filename = (
-                #     'analyzed_data_'
-                #     + '_'.join(ana_data.name.split())
-                #     + '_'
-                #     + self.data_file.strip('.dat')
-                # )
-                # with archive.m_context.raw_file(filename, 'w') as outfile:
-                #     outfile.write(
-                #         '#Field (Oe)     rho_ohe_up      rho_ahe_up    rho_ahe_down \
-                #               sigma_ahe_up       sigma_ahe_down      \n'
-                #     )
-                #     for i in range(int(fitlength)):
-                #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
-                #         if ana_data.rho_ohe_up is not None:
-                #             outfile.write(f'{ana_data.rho_ohe_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if ana_data.rho_ahe_up is not None:
-                #             outfile.write(f'{ana_data.rho_ahe_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if ana_data.rho_ahe_down is not None:
-                #             outfile.write(
-                # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if ana_data.sigma_ahe_up is not None:
-                #             outfile.write(
-                # f'{ana_data.sigma_ahe_up[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         if ana_data.rho_ahe_down is not None:
-                #             outfile.write(
-                # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
-                #         else:
-                #             outfile.write('NaN             ')
-                #         outfile.write('\n')
+            # create analyzed output files
+            # carrierout.write(
+            #     f'{ana_data.name.split()[3]}       \
+            #           {ana_data.carrier_concentration.magnitude / 1000000.0}    \
+            #                 {ana_data.carrier_mobility.magnitude * 10000.0}\n'
+            # )
+            # filename = (
+            #     'analyzed_data_'
+            #     + '_'.join(ana_data.name.split())
+            #     + '_'
+            #     + self.data_file.strip('.dat')
+            # )
+            # with archive.m_context.raw_file(filename, 'w') as outfile:
+            #     outfile.write(
+            #         '#Field (Oe)     rho_ohe_up      rho_ahe_up    rho_ahe_down \
+            #               sigma_ahe_up       sigma_ahe_down      \n'
+            #     )
+            #     for i in range(int(fitlength)):
+            #         outfile.write(f'{fitfield[i].magnitude:16.8e}')
+            #         if ana_data.rho_ohe_up is not None:
+            #             outfile.write(f'{ana_data.rho_ohe_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if ana_data.rho_ahe_up is not None:
+            #             outfile.write(f'{ana_data.rho_ahe_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if ana_data.rho_ahe_down is not None:
+            #             outfile.write(
+            # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if ana_data.sigma_ahe_up is not None:
+            #             outfile.write(
+            # f'{ana_data.sigma_ahe_up[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         if ana_data.rho_ahe_down is not None:
+            #             outfile.write(
+            # f'{ana_data.rho_ahe_down[i].magnitude:16.8e}')
+            #         else:
+            #             outfile.write('NaN             ')
+            #         outfile.write('\n')
+            data_analyzed = analyzedata(
+                self.symmetrized_data, CPFSETOAnalyzedData, self.cuttofffield
+            )
 
             self.analyzed_data = data_analyzed
 
             # Now create the according plots
-            import plotly.graph_objs as go
-            from plotly.subplots import make_subplots
-            # self.figures=[]
-
-            # Symmetrized plots
-            figure1 = make_subplots(rows=1, cols=1, subplot_titles=(['TMR']))
-            figure2 = make_subplots(rows=1, cols=1, subplot_titles=(['MR']))
-            figure3 = make_subplots(rows=1, cols=1, subplot_titles=(['Hall']))
-            for data in self.symmetrized_data:
-                color = int(
-                    255.0
-                    / len(self.symmetrized_data)
-                    * self.symmetrized_data.index(data)
-                )
-                if data.rho_xx_up is not None and data.rho_xx_down is not None:
-                    resistivity_tmr_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate((data.rho_xx_up, np.flip(data.rho_xx_down))),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure1.add_trace(resistivity_tmr_up, row=1, col=1)
-                if data.mr_up is not None and data.mr_down is not None:
-                    resistivity_mr_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate((data.mr_up, np.flip(data.mr_down))),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure2.add_trace(resistivity_mr_up, row=1, col=1)
-                if data.rho_xy_up is not None:
-                    resistivity_hall_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate((data.rho_xy_up, np.flip(data.rho_xy_down))),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure3.add_trace(resistivity_hall_up, row=1, col=1)
-            figure1.update_layout(height=400, width=716, showlegend=True)
-            figure2.update_layout(height=400, width=716, showlegend=True)
-            figure3.update_layout(height=400, width=716, showlegend=True)
-            self.figures.append(
-                PlotlyFigure(label='TMR', figure=figure1.to_plotly_json())
-            )
-            self.figures.append(
-                PlotlyFigure(label='MR', figure=figure2.to_plotly_json())
-            )
-            self.figures.append(
-                PlotlyFigure(label='Hall', figure=figure3.to_plotly_json())
-            )
-
-            # Analyzed plots
-            figure1 = make_subplots(rows=1, cols=1, subplot_titles=(['OHR']))
-            figure2 = make_subplots(rows=1, cols=1, subplot_titles=(['AHR']))
-            figure3 = make_subplots(rows=1, cols=1, subplot_titles=(['AHC']))
-            for data in self.analyzed_data:
-                color = int(
-                    255.0 / len(self.analyzed_data) * self.analyzed_data.index(data)
-                )
-                if data.rho_ohe_up is not None and data.rho_ohe_down is not None:
-                    resistivity_tmr_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate((data.rho_ohe_up, np.flip(data.rho_ohe_down))),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure1.add_trace(resistivity_tmr_up, row=1, col=1)
-                if data.rho_ahe_up is not None and data.rho_ahe_down is not None:
-                    resistivity_mr_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate((data.rho_ahe_up, np.flip(data.rho_ahe_down))),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure2.add_trace(resistivity_mr_up, row=1, col=1)
-                if data.sigma_ahe_up is not None and data.sigma_ahe_down is not None:
-                    resistivity_hall_up = go.Scatter(
-                        x=np.concatenate((data.field, np.flip(data.field))),
-                        y=np.concatenate(
-                            (data.sigma_ahe_up, np.flip(data.sigma_ahe_down))
-                        ),
-                        name=data.title.split('at')[1].strip('.'),
-                        marker_color=f'rgb({color},0,255)',
-                        showlegend=True,
-                    )
-                    figure3.add_trace(resistivity_hall_up, row=1, col=1)
-            figure1.update_layout(height=400, width=716, showlegend=True)
-            figure2.update_layout(height=400, width=716, showlegend=True)
-            figure3.update_layout(height=400, width=716, showlegend=True)
-            self.figures.append(
-                PlotlyFigure(label='OHR', figure=figure1.to_plotly_json())
-            )
-            self.figures.append(
-                PlotlyFigure(label='AHR', figure=figure2.to_plotly_json())
-            )
-            self.figures.append(
-                PlotlyFigure(label='AHC', figure=figure3.to_plotly_json())
+            createsymandanaplots(
+                self.symmetrized_data, self.analyzed_data, self.figures
             )
 
 
-class CPFSPPMSACTMeasurement(PPMSACTMeasurement, PlotSection, EntryData):
+class CPFSPPMSACTMeasurement(QDACTMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
 
-class CPFSPPMSMPMSMeasurement(PPMSMPMSMeasurement, PlotSection, EntryData):
+class CPFSPPMSMPMSMeasurement(QDMPMSMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
 
-class CPFSPPMSACMSMeasurement(PPMSACMSMeasurement, PlotSection, EntryData):
+class CPFSPPMSACMSMeasurement(QDACMSMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
 
-class CPFSPPMSResistivityMeasurement(
-    PPMSResistivityMeasurement, PlotSection, EntryData
-):
+class CPFSPPMSResistivityMeasurement(QDResistivityMeasurement, PlotSection, EntryData):
+    symmetrized_data = SubSection(
+        section_def=CPFSETOSymmetrizedData,
+        repeats=True,
+    )
+
+    analyzed_data = SubSection(
+        section_def=CPFSETOAnalyzedData,
+        repeats=True,
+    )
+
+    channel_measurement_type = Quantity(
+        type=MEnum(
+            'TMR',
+            'Hall',
+            'undefined',
+        ),
+        shape=['*'],
+        a_eln=ELNAnnotation(
+            component='EnumEditQuantity',
+        ),
+    )
+
+    maxfield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    cutofffield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
+
+        # For automatic analysis, some parameters are needed:
+        if not self.maxfield:
+            self.maxfield = 90000
+        if not self.cutofffield:
+            self.cutofffield = 50000
+
+        if self.data_file:
+            modelist = []
+            for channel in ['CH1-', 'CH2-']:
+                if channel + 'TMR' in self.data_file:
+                    modelist.append('TMR')
+                elif channel + 'Hall' in self.data_file:
+                    modelist.append('Hall')
+                else:
+                    modelist.append('undefined')
+            self.channel_measurement_type = modelist
+
+        if (
+            'Hall' in self.channel_measurement_type
+            and 'TMR' in self.channel_measurement_type
+        ):
+            # find biggest fitlength
+            fitfield, fitlength = findfitfieldandlength(self.data)
+            # Try to symmetrize data for each measurement
+            res_list = ['bridge_1_resistivity', 'bridge_2_resistivity']
+            data_symmetrized = symmetrizedata(
+                self.data,
+                CPFSETOSymmetrizedData,
+                fitfield,
+                fitlength,
+                self.field_tolerance,
+                self.channel_measurement_type,
+                self.samples,
+                logger,
+                res_list,
+                self.maxfield,
+            )
+
+            self.symmetrized_data = data_symmetrized
+
+            data_analyzed = analyzedata(
+                self.symmetrized_data,
+                CPFSETOAnalyzedData,
+                self.cutofffield,
+            )
+
+            self.analyzed_data = data_analyzed
+
+            # Now create the according plots
+            createsymandanaplots(
+                self.symmetrized_data, self.analyzed_data, self.figures
+            )
