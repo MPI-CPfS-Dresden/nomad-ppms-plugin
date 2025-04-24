@@ -34,6 +34,7 @@ from nomad_measurements.quantumdesign.qdfunctions import (
     get_qd_steps_from_data,
     split_qd_data_eto,
 )
+from nomad_measurements.quantumdesign.schema import QDAnalysisParameters
 from structlog.stdlib import (
     BoundLogger,
 )
@@ -176,15 +177,16 @@ m_package_ppms_eto_labview = SchemaPackage()
 
 class CPFSPPMSETOMeasurementLabview(CPFSPPMSETOMeasurement, PlotSection, EntryData):
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
+        self.analysis_parameters = QDAnalysisParameters()
         self.software = 'Electrical Transport Option - Labview mode'
 
         if archive.data.data_file:
             logger.info('Parsing PPMS measurement file.')
             # For automatic step discovery, some parameters are needed:
-            if not self.temperature_tolerance:
-                self.temperature_tolerance = 0.05
-            if not self.field_tolerance:
-                self.field_tolerance = 5.0
+            if not self.analysis_parameters.temperature_tolerance:
+                self.analysis_parameters.temperature_tolerance = 0.05
+            if not self.analysis_parameters.field_tolerance:
+                self.analysis_parameters.field_tolerance = 5.0
 
             with archive.m_context.raw_file(self.data_file, 'r') as file:
                 data_section = file.read()
@@ -217,7 +219,9 @@ class CPFSPPMSETOMeasurementLabview(CPFSPPMSETOMeasurement, PlotSection, EntryDa
             data_df['Magnetic Field (Oe)'] = data_df['Magnetic Field (Oe)'] * 10000
 
             all_steps, runs_list = get_qd_steps_from_data(
-                data_df, self.temperature_tolerance, self.field_tolerance
+                data_df,
+                self.analysis_parameters.temperature_tolerance,
+                self.analysis_parameters.field_tolerance,
             )
 
             if not self.sequence_file:

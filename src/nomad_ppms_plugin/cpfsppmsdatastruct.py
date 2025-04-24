@@ -44,6 +44,7 @@ from nomad_measurements.quantumdesign.qddatastruct import (
 from nomad_measurements.quantumdesign.schema import (
     QDACMSMeasurement,
     QDACTMeasurement,
+    QDAnalysisParameters,
     QDETOMeasurement,
     QDMPMSMeasurement,
     QDResistivityMeasurement,
@@ -348,6 +349,32 @@ def createsymandanaplots(symmetrized_data, analyzed_data, figures):
     figures.append(PlotlyFigure(label='AHC', figure=figure3.to_plotly_json()))
 
 
+class CPFSAnalysisParameters(QDAnalysisParameters):
+    channel_measurement_type = Quantity(
+        type=MEnum(
+            'TMR',
+            'Hall',
+            'undefined',
+        ),
+        shape=['*'],
+        a_eln=ELNAnnotation(
+            component='EnumEditQuantity',
+        ),
+    )
+
+    maxfield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+    cutofffield = Quantity(
+        type=float,
+        unit='gauss',
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
+    )
+
+
 class CPFSCrystal(EntryData):
     sample_id = Quantity(
         type=str,
@@ -534,38 +561,22 @@ class CPFSPPMSETOMeasurement(QDETOMeasurement, PlotSection, EntryData):
         repeats=True,
     )
 
-    channel_measurement_type = Quantity(
-        type=MEnum(
-            'TMR',
-            'Hall',
-            'undefined',
-        ),
-        shape=['*'],
-        a_eln=ELNAnnotation(
-            component='EnumEditQuantity',
-        ),
-    )
-
-    maxfield = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
-    cutofffield = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
+    analysis_parameters = SubSection(section_def=CPFSAnalysisParameters)
 
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
+        self.analysis_parameters = CPFSAnalysisParameters()
+
         # For automatic analysis, some parameters are needed:
-        if not self.maxfield:
-            self.maxfield = 90000
-        if not self.cutofffield:
-            self.cutofffield = 50000
+        if not self.analysis_parameters.temperature_tolerance:
+            self.analysis_parameters.temperature_tolerance = 0.2
+        if not self.analysis_parameters.field_tolerance:
+            self.analysis_parameters.field_tolerance = 5.0
+        if not self.analysis_parameters.maxfield:
+            self.analysis_parameters.maxfield = 90000
+        if not self.analysis_parameters.cutofffield:
+            self.analysis_parameters.cutofffield = 50000
 
         # find measurement modes, for now coming from sample.comment
         if self.samples[0].comment:
@@ -577,11 +588,11 @@ class CPFSPPMSETOMeasurement(QDETOMeasurement, PlotSection, EntryData):
                     modelist.append('Hall')
                 else:
                     modelist.append('undefined')
-            self.channel_measurement_type = modelist
+            self.analysis_parameters.channel_measurement_type = modelist
 
         if (
-            'Hall' in self.channel_measurement_type
-            and 'TMR' in self.channel_measurement_type
+            'Hall' in self.analysis_parameters.channel_measurement_type
+            and 'TMR' in self.analysis_parameters.channel_measurement_type
         ):
             # find biggest fitlength
             fitfield, fitlength = findfitfieldandlength(self.data)
@@ -592,12 +603,12 @@ class CPFSPPMSETOMeasurement(QDETOMeasurement, PlotSection, EntryData):
                 CPFSETOSymmetrizedData,
                 fitfield,
                 fitlength,
-                self.field_tolerance,
-                self.channel_measurement_type,
+                self.analysis_parameters.field_tolerance,
+                self.analysis_parameters.channel_measurement_type,
                 self.samples,
                 logger,
                 res_list,
-                self.maxfield,
+                self.analysis_parameters.maxfield,
             )
 
             # # create symmetrized output files
@@ -701,7 +712,9 @@ class CPFSPPMSETOMeasurement(QDETOMeasurement, PlotSection, EntryData):
             #             outfile.write('NaN             ')
             #         outfile.write('\n')
             data_analyzed = analyzedata(
-                self.symmetrized_data, CPFSETOAnalyzedData, self.cuttofffield
+                self.symmetrized_data,
+                CPFSETOAnalyzedData,
+                self.analysis_parameters.cutofffield,
             )
 
             self.analyzed_data = data_analyzed
@@ -738,38 +751,22 @@ class CPFSPPMSResistivityMeasurement(QDResistivityMeasurement, PlotSection, Entr
         repeats=True,
     )
 
-    channel_measurement_type = Quantity(
-        type=MEnum(
-            'TMR',
-            'Hall',
-            'undefined',
-        ),
-        shape=['*'],
-        a_eln=ELNAnnotation(
-            component='EnumEditQuantity',
-        ),
-    )
-
-    maxfield = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
-
-    cutofffield = Quantity(
-        type=float,
-        unit='gauss',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='gauss'),
-    )
+    analysis_parameters = SubSection(section_def=CPFSAnalysisParameters)
 
     def normalize(self, archive, logger: BoundLogger) -> None:  # noqa: PLR0912, PLR0915
         super().normalize(archive, logger)
 
+        self.analysis_parameters = CPFSAnalysisParameters()
+
         # For automatic analysis, some parameters are needed:
-        if not self.maxfield:
-            self.maxfield = 90000
-        if not self.cutofffield:
-            self.cutofffield = 50000
+        if not self.analysis_parameters.temperature_tolerance:
+            self.analysis_parameters.temperature_tolerance = 0.2
+        if not self.analysis_parameters.field_tolerance:
+            self.analysis_parameters.field_tolerance = 5.0
+        if not self.analysis_parameters.maxfield:
+            self.analysis_parameters.maxfield = 10000
+        if not self.analysis_parameters.cutofffield:
+            self.analysis_parameters.cutofffield = 2000
 
         if self.data_file:
             modelist = []
@@ -780,11 +777,11 @@ class CPFSPPMSResistivityMeasurement(QDResistivityMeasurement, PlotSection, Entr
                     modelist.append('Hall')
                 else:
                     modelist.append('undefined')
-            self.channel_measurement_type = modelist
+            self.analysis_parameters.channel_measurement_type = modelist
 
         if (
-            'Hall' in self.channel_measurement_type
-            and 'TMR' in self.channel_measurement_type
+            'Hall' in self.analysis_parameters.channel_measurement_type
+            and 'TMR' in self.analysis_parameters.channel_measurement_type
         ):
             # find biggest fitlength
             fitfield, fitlength = findfitfieldandlength(self.data)
@@ -795,12 +792,12 @@ class CPFSPPMSResistivityMeasurement(QDResistivityMeasurement, PlotSection, Entr
                 CPFSETOSymmetrizedData,
                 fitfield,
                 fitlength,
-                self.field_tolerance,
-                self.channel_measurement_type,
+                self.analysis_parameters.field_tolerance,
+                self.analysis_parameters.channel_measurement_type,
                 self.samples,
                 logger,
                 res_list,
-                self.maxfield,
+                self.analysis_parameters.maxfield,
             )
 
             self.symmetrized_data = data_symmetrized
@@ -808,7 +805,7 @@ class CPFSPPMSResistivityMeasurement(QDResistivityMeasurement, PlotSection, Entr
             data_analyzed = analyzedata(
                 self.symmetrized_data,
                 CPFSETOAnalyzedData,
-                self.cutofffield,
+                self.analysis_parameters.cutofffield,
             )
 
             self.analyzed_data = data_analyzed

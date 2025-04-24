@@ -206,3 +206,4 @@ def test_normalize_resistivity(parsed_measurement_archive, caplog):
     assert len(parsed_measurement_archive.data.data) == 4  # Noqa: PLR2004
     assert len(parsed_measurement_archive.data.data[0].time_stamp) == 199  # Noqa: PLR2004
     assert len(parsed_measurement_archive.data.figures) == 4  # Noqa: PLR2004
+    assert len(parsed_measurement_archive.data.analyzed_data[0].field) == 201  # Noqa: PLR2004
